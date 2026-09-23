@@ -1,3 +1,4 @@
+<!-- Automatisch aus jarvis/ui/index.html erzeugt (Vorschau mit Test-Daten) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -39,8 +40,8 @@
 </header>
 
 <div id="app">
-  <!-- ============ Navigation ============ -->
-  <nav id="nav">
+  <!-- ============ Navigation (schwebendes Dock unten) ============ -->
+  <nav id="dock">
     <button data-page="home" class="active" title="Zentrale"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span>Zentrale</span></button>
     <button data-page="dashboard" title="Dashboard"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></button>
     <button data-page="memory" title="Gedächtnis"><svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h1V4H9zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h-1V4h1z"/></svg><span>Gedächtnis</span></button>
@@ -56,20 +57,42 @@
   <main id="main">
     <!-- ============ Zentrale ============ -->
     <section class="page active" id="page-home">
-      <div class="home-grid">
-        <div class="core-panel">
-          
-          <canvas id="core"></canvas>
-          <div class="core-state" id="core-state">ONLINE</div>
-          <div class="core-hint" id="core-hint">Sag „Hey Jarvis“ oder klicke auf das Mikrofon</div>
-          <div class="core-stats" id="core-stats"></div>
+      <canvas id="core"></canvas>
+      <div class="cc">
+        <!-- Widgets rund um die Kugel -->
+        <div class="w w-clock" style="grid-area: tl">
+          <div class="w-time" id="w-time">--:--</div>
+          <div class="w-date" id="w-date"></div>
+          <div class="w-greet" id="w-greet"></div>
         </div>
-        <div class="chat-panel">
-          <div class="chat-head">
-            <span>Gespräch</span>
-            <button class="ghost small" id="btn-clear-chat" title="Verlauf leeren">Leeren</button>
-          </div>
-          <div id="chat"></div>
+        <div class="w" style="grid-area: tr" id="w-weather">
+          <div class="w-head">Wetter</div><div class="w-body"><span class="w-muted">Wird geladen …</span></div>
+        </div>
+        <div class="w" style="grid-area: ml" id="w-sys">
+          <div class="w-head">System</div>
+          <div class="w-meter" data-k="cpu"><span>CPU</span><b data-live="h-cpu">0 %</b><canvas class="spark"></canvas></div>
+          <div class="w-meter" data-k="ram"><span>RAM</span><b data-live="h-ram">0 %</b><canvas class="spark"></canvas></div>
+          <div class="w-meter" data-k="gpu"><span>GPU</span><b data-live="h-gpu">–</b><canvas class="spark"></canvas></div>
+        </div>
+        <div class="w" style="grid-area: mr" id="w-costs">
+          <div class="w-head">KI-Kosten</div>
+          <div class="w-big"><b data-live="h-month">0,00 €</b><span>dieser Monat</span></div>
+          <div class="w-row"><span>Heute</span><b data-live="h-today">0,00 €</b></div>
+          <div class="w-row w-el"><span>ElevenLabs</span><b id="h-el">–</b></div>
+          <div class="bar"><i id="h-el-bar" style="width:0"></i></div>
+        </div>
+        <div class="w" style="grid-area: bl" id="w-routines">
+          <div class="w-head">Als Nächstes</div><div class="w-body"></div>
+        </div>
+        <div class="w" style="grid-area: br" id="w-mode">
+          <div class="w-head">Modus</div><div class="w-body"></div>
+        </div>
+
+        <!-- Mitte: Zustand, letzte Antwort, Eingabe -->
+        <div class="cc-center" style="grid-area: c">
+          <div class="core-state" id="core-state">ONLINE</div>
+          <div class="subtitle" id="subtitle"></div>
+          <div class="core-hint" id="core-hint">Sag „Hey Jarvis“, klatsche zweimal oder klicke auf das Mikrofon</div>
           <div id="halt-banner" class="halt-banner hidden">
             <span>Not-Aus aktiv – Automationen pausiert.</span><button id="btn-resume" class="small">Freigeben</button>
           </div>
@@ -77,12 +100,23 @@
             <button type="button" id="btn-mic" class="mic" title="Sprechen (oder „Hey Jarvis“)">
               <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
             </button>
-            <input id="input" placeholder="Schreib JARVIS etwas …" spellcheck="true">
+            <input id="input" placeholder="Frag JARVIS etwas …" spellcheck="true">
             <button type="button" id="btn-stop" class="icon-btn hidden" title="Sprechen stoppen"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
+            <button type="button" id="btn-drawer" class="icon-btn" title="Gesprächsverlauf"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><i class="badge hidden" id="drawer-badge"></i></button>
             <button type="submit" class="send" title="Senden"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z"/></svg></button>
           </form>
         </div>
       </div>
+
+      <!-- Gesprächsverlauf: fährt von rechts herein -->
+      <aside class="drawer" id="drawer">
+        <div class="chat-head">
+          <span>Gespräch</span>
+          <div><button class="ghost small" id="btn-clear-chat" title="Verlauf leeren">Leeren</button>
+            <button class="ghost small" id="btn-drawer-close" title="Schließen">✕</button></div>
+        </div>
+        <div id="chat"></div>
+      </aside>
     </section>
 
     <!-- ============ Dashboard ============ -->
@@ -187,7 +221,7 @@
 <div id="modal" class="overlay hidden"><div class="modal" id="modal-box"></div></div>
 <div id="toasts"></div>
 
-<script src="../../tools/ui_mock.js"></script><script src="core.js"></script><script src="reveal.js"></script>
+<script src="../../tools/ui_mock.js"></script><script src="core.js"></script><script src="reveal.js"></script><script src="live.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

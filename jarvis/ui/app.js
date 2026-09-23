@@ -34,6 +34,8 @@ async function init() {
   applyHalted(S.status.halted);
   applyFocus(S.status.modules.focus);
   restoreChat();
+  toggleDrawer(store.get("drawer", false));
+  $("#drawer-badge").classList.add("hidden");
   if (bootOn) await sleep(600);
   $("#boot").classList.add("done");
   // Oberfläche baut sich nach dem Startbildschirm Stück für Stück auf
@@ -41,7 +43,7 @@ async function init() {
   Reveal.page($("#page-home"), 350);
   if (!S.config.setup_done) wizard();
   else if (!$("#chat").children.length) greet();
-  setInterval(refreshCoreStats, 2500); refreshCoreStats();
+  setInterval(refreshHome, 2000); refreshHome(); tickClock(); setInterval(tickClock, 1000);
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -64,7 +66,8 @@ async function bootAnimation() {
 function greet() {
   const h = new Date().getHours();
   const g = h < 11 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend";
-  addMsg("jarvis", `${g}${S.config.user_name ? ", " + S.config.user_name : ""}. Alle Systeme sind bereit.`);
+  const text = `${g}${S.config.user_name ? ", " + S.config.user_name : ""}. Alle Systeme sind bereit.`;
+  addMsg("jarvis", text); setSubtitle(text);
 }
 
 /* ===================================================== Events aus dem Backend */
@@ -73,8 +76,8 @@ window.JARVIS = {
     switch (name) {
       case "state": setState(d.state); break;
       case "level": core && core.setLevel(d.level); break;
-      case "reply": removeTyping(); addMsg(d.kind || "jarvis", d.text); break;
-      case "transcript": addMsg("user", d.text, true); showTyping(); break;
+      case "reply": removeTyping(); addMsg(d.kind || "jarvis", d.text); setSubtitle(d.text); break;
+      case "transcript": addMsg("user", d.text, true); showTyping(); setSubtitle(d.text, "user"); break;
       case "confirm": removeTyping(); addConfirm(d.text); break;
       case "notify": toast(d.text, d.title); break;
       case "halted": applyHalted(d.halted); break;
@@ -132,7 +135,10 @@ function addMsg(kind, text, voice = false, save = true) {
   d.textContent = text;
   $("#chat").appendChild(d);
   $("#chat").scrollTop = 1e9;
-  if (save) { chatLog.push({ kind, text, voice }); chatLog = chatLog.slice(-80); store.set("chat", chatLog); }
+  if (save) {
+    chatLog.push({ kind, text, voice }); chatLog = chatLog.slice(-80); store.set("chat", chatLog);
+    if (!$("#drawer").classList.contains("open")) $("#drawer-badge").classList.remove("hidden");
+  }
   return d;
 }
 function restoreChat() { chatLog = store.get("chat", []); for (const m of chatLog) addMsg(m.kind, m.text, m.voice, false); }
@@ -148,7 +154,7 @@ function addConfirm(text) {
 }
 function send(text) {
   text = text.trim(); if (!text) return;
-  addMsg("user", text); showTyping(); api.send(text);
+  addMsg("user", text); showTyping(); setSubtitle(text, "user"); api.send(text);
 }
 $("#composer").addEventListener("submit", e => { e.preventDefault(); send($("#input").value); $("#input").value = ""; });
 $("#btn-mic").onclick = () => api.toggle_mic();
@@ -169,10 +175,11 @@ $$("[data-win]").forEach(b => b.onclick = () => ({
 $("#titlebar").addEventListener("dblclick", e => { if (!e.target.closest("button")) api.win_toggle_max(); });
 
 /* Navigation */
-$$("#nav button").forEach(b => b.onclick = () => go(b.dataset.page));
+$$("#dock button").forEach(b => b.onclick = () => go(b.dataset.page));
 function go(p) {
   page = p;
-  $$("#nav button").forEach(b => b.classList.toggle("active", b.dataset.page === p));
+  if (p === "dashboard") Live.reset("d-");   // beim Betreten zählt Reveal von 0 hoch, danach gleiten die Werte
+  $$("#dock button").forEach(b => b.classList.toggle("active", b.dataset.page === p));
   $$(".page").forEach(s => s.classList.toggle("active", s.id === "page-" + p));
   const done = ({ dashboard: renderDashboard, memory: renderMemory, automations: renderAutomations, "home-auto": renderRooms,
      phone: renderPhone, log: renderLog, diagnose: renderBackups, settings: renderSettings }[p] || (() => {}))();
@@ -207,28 +214,97 @@ function fmtUptime(s) { const d = Math.floor(s / 86400), h = Math.floor(s % 8640
 function gauge(val, label, sub = "") {
   const v = Math.max(0, Math.min(100, val || 0)), r = 34, c = 2 * Math.PI * r;
   const col = v > 85 ? "var(--danger)" : v > 65 ? "var(--warn)" : "var(--accent)";
-  return `<div class="gauge"><svg viewBox="0 0 86 86"><circle cx="43" cy="43" r="${r}" stroke="rgba(255,255,255,.07)" stroke-width="7"/>
-    <circle cx="43" cy="43" r="${r}" stroke="${col}" stroke-width="7" stroke-dasharray="${c * v / 100} ${c}" transform="rotate(-90 43 43)" style="filter:drop-shadow(0 0 4px ${col})"/></svg>
-    <div><div class="val">${Math.round(v)}%</div><div class="lbl">${esc(label)}</div><div class="meta">${esc(sub)}</div></div></div>`;
+  return `<div class="gauge"><svg viewBox="0 0 86 86"><circle cx="43" cy="43" r="${r}" stroke="rgba(255,255,255,.07)" stroke-width="5"/>
+    <circle cx="43" cy="43" r="${r}" stroke="${col}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${(c * v / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 43 43)" style="filter:drop-shadow(0 0 4px ${col})" data-live-arc="d-a-${esc(label)}"/></svg>
+    <div><div class="val" data-live="d-g-${esc(label)}">${Math.round(v)}%</div><div class="lbl">${esc(label)}</div><div class="meta">${esc(sub)}</div></div></div>`;
 }
 const sw = (key, val) => `<label class="switch"><input type="checkbox" data-key="${key}" ${val ? "checked" : ""}><span></span></label>`;
 
-/* ===================================================== Zentrale: Kurzstatus */
-async function refreshCoreStats() {
-  if (page !== "home" || document.hidden) return;
-  try {
-    const d = await window.pywebview.api.dashboard();
-    if (d.error) return;
-    const s = d.system, now = new Date();
-    $("#core-stats").innerHTML = `
-      <div class="col"><div>CPU <b>${s.cpu.toFixed(0)}%</b></div><div>RAM <b>${s.ram.toFixed(0)}%</b></div>${s.gpu ? `<div>GPU <b>${s.gpu.load.toFixed(0)}%</b> · ${s.gpu.temp}°C</div>` : ""}</div>
-      <div class="col r"><div><b>${now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</b></div><div>${now.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}</div>
-      <div>KI <b>${d.status.modules.ai?.available ? "bereit" : "lokal"}</b></div></div>`;
-    const v = d.status.modules.voice || {};
-    $("#core-hint").textContent = v.error ? "Mikrofon-Problem: " + v.error
-      : v.wake ? "Sag „Hey Jarvis“ oder klicke auf das Mikrofon (Strg+Leertaste)" : "Klicke auf das Mikrofon oder schreibe unten (Strg+Leertaste)";
-  } catch {}
+/* ===================================================== Kommandozentrale */
+const sparks = {};
+const WEATHER_ICON = c => c === 0 ? "☀️" : c <= 2 ? "🌤️" : c === 3 ? "☁️" : c <= 48 ? "🌫️" : c <= 67 ? "🌧️" : c <= 77 ? "🌨️" : c <= 82 ? "🌦️" : "⛈️";
+const MODE_NAMES = { normal: "Normal", gaming: "Gaming", film: "Film", schlafen: "Schlafen", arbeit: "Arbeit" };
+
+function tickClock() {
+  const now = new Date(), h = now.getHours();
+  $("#w-time").textContent = now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  $("#w-date").textContent = now.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+  const name = S?.config?.user_name;
+  $("#w-greet").textContent = (h < 5 ? "Gute Nacht" : h < 11 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend") + (name ? ", " + name : "");
 }
+
+async function refreshHome() {
+  if (page !== "home" || document.hidden) return;
+  let d;
+  try { d = await window.pywebview.api.home(); } catch { return; }
+  if (!d || d.error) return;
+  // System: Werte gleiten, Verlaufskurven laufen weiter
+  const meter = (k, v, label) => {
+    const row = $(`.w-meter[data-k="${k}"]`); if (!row) return;
+    row.classList.toggle("hidden", v == null);
+    if (v == null) return;
+    Live.text(row.querySelector("b"), label ?? `${Math.round(v)} %`);
+    (sparks[k] ||= new Spark(row.querySelector(".spark"))).push(v);
+  };
+  meter("cpu", d.cpu); meter("ram", d.ram); meter("gpu", d.gpu ? d.gpu.load : null);
+  // Kosten
+  Live.text($('[data-live="h-month"]'), fmtEur(d.costs.month));
+  Live.text($('[data-live="h-today"]'), fmtEur(d.costs.today));
+  $("#h-el").textContent = d.costs.elevenlabs_chars ? `${d.costs.elevenlabs_chars.toLocaleString("de-DE")} / ${d.costs.elevenlabs_free.toLocaleString("de-DE")}` : "–";
+  $("#h-el-bar").style.width = Math.min(100, d.costs.elevenlabs_chars / (d.costs.elevenlabs_free || 1) * 100) + "%";
+  // Wetter
+  const w = d.weather, wb = $("#w-weather .w-body");
+  if (!w) wb.innerHTML = `<span class="w-muted">Wird geladen …</span>`;
+  else if (!w.city) wb.innerHTML = `<span class="w-muted">Sag „Ich wohne in …“, dann zeige ich dir hier das Wetter.</span>`;
+  else if (wb.dataset.sig !== JSON.stringify(w)) {
+    wb.dataset.sig = JSON.stringify(w);
+    wb.innerHTML = `<div class="w-weather-now"><span class="ico">${WEATHER_ICON(w.code)}</span><b data-live="h-temp">${w.temp}°</b></div>
+      <div class="w-weather-sub">${esc(w.city)} · ${esc(w.desc)}</div><div class="w-weather-sub">${w.min}° / ${w.max}°${w.rain >= 30 ? ` · ☂ ${w.rain} %` : ""}</div>`;
+  }
+  // Als Nächstes
+  const rb = $("#w-routines .w-body"), up = d.upcoming || [];
+  const rsig = JSON.stringify(up);
+  if (rb.dataset.sig !== rsig) {
+    rb.dataset.sig = rsig;
+    rb.innerHTML = up.length ? up.map(u => `<div class="w-item"><span>${esc(u.name)}</span><span>${esc(u.when)}</span></div>`).join("")
+      : `<span class="w-muted">Keine geplanten Routinen. Sag z. B. „Jeden Tag um 7 Uhr Briefing“.</span>`;
+  }
+  // Modus + verpasste Meldungen
+  const f = d.focus || {}, mb = $("#w-mode .w-body"), msig = `${f.mode}|${f.manual}|${d.missed}`;
+  if (mb.dataset.sig !== msig) {
+    mb.dataset.sig = msig;
+    mb.innerHTML = `<div class="w-mode-name">${MODE_ICON[f.mode] || "✦"} ${esc(MODE_NAMES[f.mode] || "Normal")}${f.mode !== "normal" && f.manual === false ? ' <small class="w-muted">(auto)</small>' : ""}</div>
+      ${d.missed ? `<div class="w-row"><span>Verpasst</span><b>${d.missed}</b></div>` : ""}
+      <div class="w-mode-btns">${["normal", "gaming", "film", "arbeit"].map(m => `<button class="small ghost ${f.mode === m ? "on" : ""}" data-mode="${m}">${esc(MODE_NAMES[m])}</button>`).join("")}</div>`;
+    mb.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => api.focus_set(b.dataset.mode).then(t => toast(t, "Modus")));
+  }
+  // Hinweis unter der Kugel
+  const v = d.voice || {};
+  $("#core-hint").textContent = v.error ? "Mikrofon-Problem: " + v.error
+    : [v.wake && "Sag „Hey Jarvis“", v.clap && "klatsche zweimal", "oder klicke auf das Mikrofon"].filter(Boolean).join(", ");
+}
+
+/* Untertitel unter der Kugel: was du gesagt hast / Jarvis' letzte Antwort */
+let subTimer = null;
+function setSubtitle(text, who = "jarvis") {
+  const el = $("#subtitle");
+  el.classList.remove("show");
+  clearTimeout(subTimer);
+  setTimeout(() => {
+    el.textContent = text; el.classList.toggle("user", who === "user"); el.classList.add("show");
+    subTimer = setTimeout(() => el.classList.remove("show"), who === "user" ? 15000 : 12000);
+  }, 180);
+}
+
+/* Gesprächsverlauf-Schublade */
+function toggleDrawer(open) {
+  const d = $("#drawer"), on = open ?? !d.classList.contains("open");
+  d.classList.toggle("open", on);
+  if (on) { $("#drawer-badge").classList.add("hidden"); $("#chat").scrollTop = 1e9; }
+  store.set("drawer", on);
+}
+$("#btn-drawer").onclick = () => toggleDrawer();
+$("#btn-drawer-close").onclick = () => toggleDrawer(false);
 
 /* ===================================================== KI-Kosten */
 const eurFmt = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
@@ -245,8 +321,8 @@ function costsCard(c) {
   const rows = (c.by_kind || []).map(k => `<span>${esc(k.service)} · ${esc(k.kind)}</span><span>${k.eur ? fmtEur(k.eur) : "gratis"} <small class="meta">${k.n}× · ${fmtUnits(k.units, k.unit)}</small></span>`).join("");
   const el = c.elevenlabs_free ? Math.min(100, c.elevenlabs_chars / c.elevenlabs_free * 100) : 0;
   return `<div class="card span2"><div class="card-head"><h3>KI-Kosten</h3><span class="meta">Richtwerte · genaue Abrechnung bei OpenAI</span></div>
-    <div class="cost-stats"><div><b>${fmtEur(c.today)}</b><span>Heute</span></div><div><b>${fmtEur(c.month)}</b><span>Dieser Monat</span></div>
-      <div><b>${fmtEur(c.prev_month)}</b><span>Letzter Monat</span></div><div><b>${fmtEur(c.all)}</b><span>Insgesamt</span></div></div>
+    <div class="cost-stats"><div><b data-live="d-c-today">${fmtEur(c.today)}</b><span>Heute</span></div><div><b data-live="d-c-month">${fmtEur(c.month)}</b><span>Dieser Monat</span></div>
+      <div><b data-live="d-c-prev">${fmtEur(c.prev_month)}</b><span>Letzter Monat</span></div><div><b data-live="d-c-all">${fmtEur(c.all)}</b><span>Insgesamt</span></div></div>
     <div class="cost-bars" title="Letzte 30 Tage">${bars}</div>
     ${rows ? `<div class="kv" style="margin-top:12px">${rows}</div>` : `<p class="hint">Diesen Monat noch keine kostenpflichtige KI-Nutzung.</p>`}
     ${c.elevenlabs_chars ? `<div style="margin-top:12px"><div class="kv"><span>ElevenLabs-Freikontingent</span><span>${c.elevenlabs_chars.toLocaleString("de-DE")} / ${c.elevenlabs_free.toLocaleString("de-DE")} Zeichen</span></div>
@@ -257,7 +333,7 @@ function costsCard(c) {
 /* ===================================================== Dashboard */
 async function renderDashboard() {
   const d = await api.dashboard(); const s = d.system, m = d.status.modules;
-  const disks = s.disks.map(x => `<div style="margin-bottom:8px"><div class="kv"><span>${esc(x.mount)}</span><span>${fmtBytes(x.used)} / ${fmtBytes(x.total)}</span></div><div class="bar"><i style="width:${x.percent}%"></i></div></div>`).join("");
+  const disks = s.disks.map(x => `<div style="margin-bottom:8px"><div class="kv"><span>${esc(x.mount)}</span><span>${fmtBytes(x.used)} / ${fmtBytes(x.total)}</span></div><div class="bar"><i style="width:${x.percent}%" data-live-w="d-disk-${esc(x.mount)}"></i></div></div>`).join("");
   const dot = ok => `<span class="dot ${ok ? "ok" : "bad"}"></span>`;
   $("#dash").innerHTML = `
     <div class="card">${gauge(s.cpu, "Prozessor", s.cpu_name)}</div>
@@ -289,6 +365,7 @@ async function renderDashboard() {
     ${costsCard(d.costs)}
     <div class="card span2"><div class="card-head"><h3>Letzte Aktivitäten</h3></div><div class="log">${d.activity.map(logRow).join("")}</div></div>`;
   $("#missed-clear") && ($("#missed-clear").onclick = async () => { await api.missed_clear(); renderDashboard(); });
+  Live.after($("#dash"));   // Werte gleiten vom vorigen Stand zum neuen
   if (page === "dashboard") setTimeout(() => page === "dashboard" && renderDashboard(), 4000);
 }
 

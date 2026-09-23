@@ -48,6 +48,13 @@
     set_elevenlabs_key: async k => ({ ok: true, msg: "Verbunden – 24 Stimmen verfügbar." }),
     audio_devices: async () => ({ inputs: ["Mikrofon (GXT 256)"], outputs: ["Lautsprecher (Realtek)", "Kopfhörer"] }),
     models: async () => ["gpt-4.1", "gpt-4.1-mini", "gpt-5-mini"],
+    home: async () => ({ cpu: 15 + Math.random() * 40, ram: 48 + Math.random() * 6, gpu: { load: 20 + Math.random() * 60, temp: 55 },
+      costs: { today: 0.031 + Math.random() * 0.01, month: 0.84, elevenlabs_chars: 6120, elevenlabs_free: 10000 },
+      focus: cfg.focus.mode === "normal" ? { mode: "normal" } : { mode: cfg.focus.mode, manual: false }, missed: 3,
+      upcoming: [{ name: "Ich gehe schlafen", when: "Heute 23:30" }, { name: "Briefing", when: "Morgen 07:00" }],
+      weather: { city: "Berlin", temp: 18, desc: "teils bewölkt", code: 2, min: 12, max: 21, rain: 40 },
+      voice: { wake: true, clap: true } }),
+    focus_set: async m => { cfg.focus.mode = m; return `${m}-Modus aktiv.`; },
     settings_set: async vals => {
       for (const [k, v] of Object.entries(vals || {})) { const p = k.split("."); let n = cfg; p.slice(0, -1).forEach(x => n = n[x] = n[x] || {}); n[p.at(-1)] = v; }
       return { version: "1.0.0", config: cfg, has_key: true, status };

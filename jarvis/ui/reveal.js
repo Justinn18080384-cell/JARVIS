@@ -3,7 +3,7 @@
    Nur beim Betreten einer Seite – spätere Aktualisierungen (z. B. Dashboard alle 4 s) bleiben ruhig. */
 (function () {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
-  const ITEMS = [".toolbar", ".page > .hint", ".card", ".auto-card", ".row", ".log .e", ".empty", ".core-panel", ".chat-panel", ".msg", ".device"].join(",");
+  const ITEMS = [".toolbar", ".page > .hint", ".card", ".auto-card", ".row", ".log .e", ".empty", ".w", ".cc-center > *", ".device"].join(",");
   const MAX_STAGGER = 16;
 
   const Reveal = {
@@ -15,7 +15,8 @@
       if (!this.enabled()) return;
       const bits = [...document.querySelectorAll("#titlebar .brand, #titlebar .status-pill, #titlebar .win-buttons")];
       bits.forEach((el, i) => this._mark(el, "rv", i, 0));
-      [...document.querySelectorAll("#nav button")].forEach((el, i) => this._mark(el, "rv-side", i, 150));
+      this._mark(document.querySelector("#dock"), "rv", 0, 900);
+      [...document.querySelectorAll("#dock button")].forEach((el, i) => this._mark(el, "rv", i, 1000));
     },
 
     /** Eine Seite aufbauen. */
@@ -52,6 +53,7 @@
         const target = parseFloat(m[0].replace(",", ".")), dec = (m[0].split(/[.,]/)[1] || "").length, sep = m[0].includes(",") ? "," : ".";
         const t0 = performance.now(), dur = 900;
         el.classList.remove("rv-num"); void el.offsetWidth; el.classList.add("rv-num");
+        setTimeout(() => { if (el.isConnected) el.textContent = txt; }, dur + 150);   // Endwert sicher setzen
         const step = now => {
           if (!el.isConnected) return;
           const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);

@@ -309,6 +309,75 @@ class API:
         ok, msg = ai.test()
         return {"ok": ok, "msg": msg}
 
+    # ------------------------------------------------------ Kommandozentrale
+    _weather_cache = (0.0, None)
+
+    @safe
+    def home(self):
+        """Alle Werte für die Widgets der Startseite in einer Abfrage (wird alle 2 s aufgerufen)."""
+        import datetime
+        from .modules.pc import system
+        from .modules import costs, focus, automation
+        s = system.stats()
+        c = costs.summary()
+        now = datetime.datetime.now()
+        upcoming = []
+        for a in automation.load_all():
+            sch = a.get("schedule")
+            if not a.get("enabled", True) or not sch or not sch.get("time"):
+                continue
+            h, m = (int(x) for x in sch["time"].split(":"))
+            days = sch.get("days") or list(range(7))
+            for add in range(8):
+                d = now + datetime.timedelta(days=add)
+                when = d.replace(hour=h, minute=m, second=0, microsecond=0)
+                if d.weekday() in days and when > now:
+                    label = "Heute" if add == 0 else "Morgen" if add == 1 else ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][when.weekday()]
+                    upcoming.append({"name": a["name"], "when": f"{label} {sch['time']}", "ts": when.timestamp()})
+                    break
+        upcoming.sort(key=lambda x: x["ts"])
+        return {
+            "cpu": s["cpu"], "ram": s["ram"], "ram_used": s["ram_used"], "ram_total": s["ram_total"],
+            "gpu": s["gpu"], "battery": s["battery"],
+            "costs": {"today": c["today"], "month": c["month"], "elevenlabs_chars": c["elevenlabs_chars"],
+                      "elevenlabs_free": c["elevenlabs_free"]},
+            "focus": self._j.modules["focus"].status() if "focus" in self._j.modules else {},
+            "missed": focus.missed_count(),
+            "upcoming": upcoming[:3],
+            "automations": len(automation.load_all()),
+            "weather": self._weather(),
+            "ai": self._j.modules["ai"].status() if "ai" in self._j.modules else {},
+            "voice": {**(self._j.modules["voice"].status() if "voice" in self._j.modules else {}),
+                      "clap": bool(config.get("voice.clap_wake"))},
+        }
+
+    def _weather(self):
+        """Aktuelles Wetter am Wohnort – 15 Minuten zwischengespeichert, Abruf im Hintergrund."""
+        ts, data = API._weather_cache
+        if time.time() - ts > 900 and not getattr(API, "_weather_loading", False):
+            API._weather_loading = True
+
+            def load():
+                from .modules import briefing
+                result = None
+                try:
+                    city = briefing._city("")
+                    if city:
+                        name, w = briefing.weather_data(city)
+                        cur, d = w["current"], w["daily"]
+                        result = {"city": name, "temp": round(cur["temperature_2m"]), "desc": briefing.WMO.get(cur["weather_code"], ""),
+                                  "code": cur["weather_code"], "min": round(d["temperature_2m_min"][0]), "max": round(d["temperature_2m_max"][0]),
+                                  "rain": d["precipitation_probability_max"][0]}
+                    else:
+                        result = {"city": ""}
+                except Exception as e:
+                    log.logger().warning("Wetter-Widget: %s", e)
+                    result = API._weather_cache[1]
+                API._weather_cache = (time.time(), result)
+                API._weather_loading = False
+            threading.Thread(target=load, daemon=True).start()
+        return data
+
     @safe
     def focus_set(self, mode):
         from .modules import focus
