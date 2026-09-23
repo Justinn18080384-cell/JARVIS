@@ -43,6 +43,12 @@ DEFAULTS = {
         "output_device": None,
         "chime": True,
     },
+    # Modi / Nicht stören
+    "focus": {
+        "mode": "normal",               # normal | gaming | film | schlafen | arbeit
+        "auto": True,                   # Spiel/Film im Vollbild automatisch erkennen
+        "sleep": {"enabled": False, "from": "23:00", "to": "07:00"},
+    },
     # KI-Kosten (Richtwerte)
     "costs": {
         "eur_per_usd": 0.86,

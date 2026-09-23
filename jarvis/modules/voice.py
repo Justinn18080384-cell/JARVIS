@@ -143,7 +143,7 @@ class Speaker:
                     now = time.time()
                     if now - getattr(self, "_last_err_notify", 0) > 60:   # nicht bei jedem Satz melden
                         self._last_err_notify = now
-                        bus.emit("notify", title="Stimme", text=msg + " Ich spreche vorerst mit der Windows-Stimme.", speak=False)
+                        bus.emit("notify", title="Stimme", text=msg + " Ich spreche vorerst mit der Windows-Stimme.", speak=False, priority=1)
                     audio_q.put(("error", s))
                     break
             audio_q.put(None)
@@ -356,7 +356,7 @@ class Listener:
         except Exception as e:
             self.stream = None
             self.error = log.error("Mikrofon", e)
-            bus.emit("notify", title="Mikrofon", text="Mikrofon konnte nicht geöffnet werden: " + self.error, speak=False)
+            bus.emit("notify", title="Mikrofon", text="Mikrofon konnte nicht geöffnet werden: " + self.error, speak=False, priority=1)
             return False
 
     def close_stream(self):

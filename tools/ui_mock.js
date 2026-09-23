@@ -8,13 +8,15 @@
       stt_engine: "openai", local_stt_model: "small", wake_word: true, wake_threshold: .5, always_listen: false, silence_seconds: 1.8, max_record_seconds: 30,
       input_device: null, output_device: null, chime: true },
     security: { confirm_level: 2, privacy_mode: false, screen_ai: true },
+    focus: { mode: "gaming", auto: true, sleep: { enabled: false, from: "23:00", to: "07:00" } },
     app: { start_with_windows: false, start_minimized: false, close_to_tray: true, boot_animation: true, notifications: true, active_mode: true, auto_backup: true },
     update: { url: "", auto_check: true }, remote: { enabled: false, port: 8765, token: "" }, smarthome: { homeassistant_url: "" },
   };
   const now = Date.now() / 1000;
   const status = { version: "1.0.0", halted: false, modules: { ai: { available: true, model: "gpt-4.1-mini", requests: 3, has_key: true },
     voice: { wake: true, tts: "edge", stt: "openai" }, pc: { apps: 198 }, automation: { profiles: 1, routines: 3, commands: 1 },
-    smarthome: { on: 1 }, phone: { devices: [] }, remote: { enabled: false } } };
+    smarthome: { on: 1 }, phone: { devices: [] }, remote: { enabled: false },
+    focus: { mode: "gaming", label: "Gaming", manual: false, auto: true, missed: 3 } } };
   const api = {
     ready: async () => ({ version: "1.0.0", config: cfg, has_key: true, status, background: false }),
     state: async () => ({ version: "1.0.0", config: cfg, has_key: true, status, background: false }),
@@ -23,6 +25,7 @@
     dashboard: async () => ({ system: { cpu: 23, ram: 51, ram_used: 16.4e9, ram_total: 32e9, cpu_name: "AMD Ryzen 7 5800X", cores: 16, host: "GAMING-PC",
       os: "Windows 11", uptime: 23000, procs: 312, disks: [{ mount: "C:\\", used: 700e9, total: 1000e9, percent: 70 }, { mount: "E:\\", used: 1.6e12, total: 2e12, percent: 81 }],
       gpu: { name: "NVIDIA GeForce RTX 3070", load: 7, temp: 49 }, battery: null }, status, memory_count: 4,
+      missed: [{ ts: now - 60, priority: 0, title: "Laufwerk", text: "Neues Laufwerk E:\\ erkannt." }, { ts: now - 400, priority: 1, title: "Routine", text: "Backup-Routine ausgeführt." }],
       costs: { today: 0.031, month: 0.84, prev_month: 1.27, all: 2.11, all_n: 412,
         days: [...Array(30)].map((_, i) => ({ day: new Date(Date.now() - (29 - i) * 864e5).toLocaleDateString("sv-SE"), eur: i % 4 ? Math.random() * 0.06 : 0 })),
         by_kind: [{ service: "OpenAI", kind: "Chat", n: 180, units: 412000, unit: "Tokens", eur: 0.61 }, { service: "OpenAI", kind: "Spracherkennung", n: 150, units: 690, unit: "Sekunden", eur: 0.03 },

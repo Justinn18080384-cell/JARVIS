@@ -99,10 +99,11 @@ class API:
     @safe
     def dashboard(self):
         from .modules.pc import system
-        from .modules import memory, automation, smarthome, costs
+        from .modules import memory, automation, smarthome, costs, focus
         s = system.stats()
         return {
             "costs": costs.summary(),
+            "missed": focus.missed_list(10),
             "system": s,
             "status": self._j.api_status(),
             "memory_count": len(memory.all_facts()),
@@ -307,6 +308,17 @@ class API:
             return {"ok": True, "msg": "Schlüssel entfernt."}
         ok, msg = ai.test()
         return {"ok": ok, "msg": msg}
+
+    @safe
+    def focus_set(self, mode):
+        from .modules import focus
+        return focus.focus_set(mode)
+
+    @safe
+    def missed_clear(self):
+        from .modules import focus
+        focus.mark_seen()
+        return True
 
     @safe
     def set_elevenlabs_key(self, key):

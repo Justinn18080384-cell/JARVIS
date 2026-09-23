@@ -434,7 +434,7 @@ def timer(seconds, label=""):
     seconds = float(seconds)
 
     def fire():
-        bus.emit("notify", title="Timer", text=f"Timer abgelaufen{': ' + label if label else ''}.", speak=True)
+        bus.emit("notify", title="Timer", text=f"Timer abgelaufen{': ' + label if label else ''}.", speak=True, priority=2)
     t = threading.Timer(seconds, fire)
     t.daemon = True
     t.start()

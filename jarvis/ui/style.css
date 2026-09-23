@@ -233,6 +233,10 @@ h3 { font: 500 14px var(--display); letter-spacing: .1em; text-transform: upperc
 .dot.bad { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 .dot.warn { background: var(--warn); }
 .span2 { grid-column: span 2; }
+input[type=time] { color-scheme: dark; }
+.mode-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; margin-left: 8px; border-radius: 12px; font: 11px var(--display);
+  letter-spacing: .1em; text-transform: uppercase; color: var(--accent-2); background: rgba(25,211,255,.12); border: 1px solid rgba(25,211,255,.4); cursor: pointer; }
+.mode-chip b { min-width: 16px; height: 16px; border-radius: 8px; background: var(--warn); color: #000; font: 600 10px/16px var(--mono); text-align: center; }
 .cost-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .cost-stats b { display: block; font: 500 20px var(--display); color: var(--accent-2); }
 .cost-stats span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }

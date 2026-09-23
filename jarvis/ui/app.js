@@ -31,6 +31,7 @@ async function init() {
   S = await api.ready();
   $("#version").textContent = "v" + S.version;
   applyHalted(S.status.halted);
+  applyFocus(S.status.modules.focus);
   restoreChat();
   if (bootOn) await sleep(600);
   $("#boot").classList.add("done");
@@ -73,6 +74,8 @@ window.JARVIS = {
       case "confirm": removeTyping(); addConfirm(d.text); break;
       case "notify": toast(d.text, d.title); break;
       case "halted": applyHalted(d.halted); break;
+      case "focus": applyFocus({ mode: d.mode, label: d.label, manual: d.manual }); if (page === "settings") renderSettings(); break;
+      case "missed_changed": applyFocus({ missed: d.count }); if (page === "dashboard") renderDashboard(); break;
       case "activity": if (page === "log") renderLog(); if (!d.ok && d.kind === "fehler") {} break;
       case "automations_changed": if (page === "automations") renderAutomations(); break;
       case "devices_changed": if (page === "home-auto") renderRooms(); if (page === "phone") renderPhone(); break;
@@ -97,6 +100,20 @@ function setState(s) {
   $("#btn-stop").classList.toggle("hidden", s !== "speaking");
   if (s === "idle") removeTyping();
 }
+/* Modus-Anzeige in der Titelleiste: Modus + Zahl verpasster Meldungen */
+let focusState = { mode: "normal", label: "Normal", missed: 0 };
+const MODE_ICON = { gaming: "🎮", film: "🎬", schlafen: "🌙", arbeit: "💼" };
+function applyFocus(f) {
+  if (!f) return;
+  focusState = { ...focusState, ...f };
+  const chip = $("#mode-chip"), on = focusState.mode !== "normal";
+  chip.classList.toggle("hidden", !on && !focusState.missed);
+  chip.querySelector("span").textContent = on ? `${MODE_ICON[focusState.mode] || ""} ${focusState.label}${focusState.manual === false ? " (auto)" : ""}` : "Verpasst";
+  chip.title = on ? "Klicken: Modus beenden" : "Klicken: verpasste Meldungen anhören";
+  const b = chip.querySelector("b"); b.textContent = focusState.missed; b.classList.toggle("hidden", !focusState.missed);
+}
+$("#mode-chip").onclick = () => send(focusState.mode !== "normal" ? "Modus beenden" : "Was habe ich verpasst?");
+
 function applyHalted(h) {
   document.body.dataset.halted = h ? "1" : "0";
   $("#halt-banner").classList.toggle("hidden", !h);
@@ -256,8 +273,12 @@ async function renderDashboard() {
       <span>Zimmer</span><span>${d.rooms}</span><span>Smart-Home</span><span>${d.devices} Geräte (${m.smarthome?.on ?? 0} an)</span>
       <span>Handy</span><span>${(m.phone?.devices || []).map(x => esc(x.model)).join(", ") || "nicht verbunden"}</span>
       <span>Fernzugriff</span><span>${m.remote?.enabled ? "aktiv (Port " + m.remote.port + ")" : "aus"}</span></div></div>
+    ${d.missed && d.missed.length ? `<div class="card span2"><div class="card-head"><h3>Verpasste Meldungen</h3><button class="small ghost" id="missed-clear">Gelesen</button></div>
+      <div class="log">${d.missed.map(x => `<div class="e"><span class="t">${new Date(x.ts * 1000).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+        <span class="kind">${esc(["Info", "Wichtig", "Dringend", "Kritisch"][x.priority] || "")}</span><span>${esc(x.title ? x.title + ": " : "")}${esc(x.text)}</span></div>`).join("")}</div></div>` : ""}
     ${costsCard(d.costs)}
     <div class="card span2"><div class="card-head"><h3>Letzte Aktivitäten</h3></div><div class="log">${d.activity.map(logRow).join("")}</div></div>`;
+  $("#missed-clear") && ($("#missed-clear").onclick = async () => { await api.missed_clear(); renderDashboard(); });
   if (page === "dashboard") setTimeout(() => page === "dashboard" && renderDashboard(), 4000);
 }
 
@@ -496,6 +517,16 @@ async function renderSettings() {
     <div class="field"><div class="lbl">Signalton beim Zuhören</div><div class="ctl">${sw("voice.chime", v.chime)}</div></div>
   </div>
 
+  <div class="card"><div class="card-head"><h3>Modi &amp; Nicht stören</h3></div>
+    <div class="field"><div class="lbl">Aktueller Modus<small>Auch per Sprache: „Gaming-Modus an“, „Nicht stören“, „Modus beenden“</small></div>
+      <div class="ctl"><select id="s-focus">${opt([["normal", "Normal"], ["gaming", "🎮 Gaming"], ["film", "🎬 Film"], ["schlafen", "🌙 Schlafen"], ["arbeit", "💼 Arbeit / Nicht stören"]], S.status.modules.focus?.mode || "normal")}</select></div></div>
+    <div class="field"><div class="lbl">Automatisch erkennen<small>Spiel im Vollbild → Gaming · Video im Vollbild → Film</small></div><div class="ctl">${sw("focus.auto", c.focus.auto)}</div></div>
+    <div class="field"><div class="lbl">Schlafmodus nach Zeitplan</div><div class="ctl">${sw("focus.sleep.enabled", c.focus.sleep.enabled)}
+      <input type="time" data-key="focus.sleep.from" value="${esc(c.focus.sleep.from)}" style="width:110px"> – <input type="time" data-key="focus.sleep.to" value="${esc(c.focus.sleep.to)}" style="width:110px"></div></div>
+    <p class="hint">Gaming &amp; Arbeit: vorlesen nur Dringendes, Unwichtiges wird gesammelt. Film: vorlesen nur Kritisches. Schlafen: nur Kritisches wird überhaupt gemeldet.
+      Antworten auf deine eigenen Fragen spricht JARVIS immer. Verpasstes: „Was habe ich verpasst?“</p>
+  </div>
+
   <div class="card"><div class="card-head"><h3>Sicherheit &amp; Datenschutz</h3></div>
     <div class="field"><div class="lbl">Bestätigung erforderlich ab<small>Welche Aktionen JARVIS vorher bestätigen lässt</small></div>
       <div class="ctl"><select data-key="security.confirm_level" data-int>${opt([["1", "allen Aktionen"], ["2", "heiklen Aktionen (empfohlen)"], ["3", "nur kritischen Aktionen"]], String(c.security.confirm_level))}</select></div></div>
@@ -548,6 +579,7 @@ async function renderSettings() {
     $("#s-key-msg").textContent = "Prüfe …"; const r = await api.set_api_key(k);
     $("#s-key-msg").textContent = r.msg; $("#s-key-msg").className = "status-msg " + (r.ok ? "ok" : "bad"); if (r.ok) setTimeout(renderSettings, 1200);
   };
+  $("#s-focus").onchange = async e => toast(await api.focus_set(e.target.value), "Modus");
   $("#s-el-save") && ($("#s-el-save").onclick = async () => {
     const k = $("#s-el-key").value.trim(); if (!k) return;
     $("#s-el-msg").textContent = "Prüfe …"; const r = await api.set_elevenlabs_key(k);

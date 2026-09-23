@@ -86,7 +86,9 @@ class Brain:
 
     _reply_cb = None
 
-    def reply(self, text, speak=True, kind="jarvis"):
+    def reply(self, text, speak=True, kind="jarvis", priority=None):
+        """priority=None: direkte Antwort an den Nutzer – wird immer gesprochen.
+        Sonst (z. B. zeitgesteuerte Routine): nur, wenn der aktive Modus es erlaubt."""
         if not text:
             return
         bus.emit("reply", text=text, kind=kind)
@@ -98,6 +100,9 @@ class Brain:
                 pass
         if speak and self.ctx.source == "remote" and cb and not config.get("remote.speak_on_pc", False):
             speak = False
+        if speak and priority is not None:
+            from ..modules import focus
+            speak = focus.may_speak(priority)
         if speak:
             self.jarvis.speak(text)
 

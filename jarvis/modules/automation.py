@@ -340,7 +340,7 @@ class AutomationModule(Module):
         msg = f"{a['name']} ausgeführt." + (f" Probleme: {' '.join(texts)}" if failed else "")
         log.activity(M, msg, ok=failed == 0)
         if announce_end:
-            brain.reply(msg)
+            brain.reply(msg, priority=1 if failed else 0)
         return {"ok": failed == 0, "text": msg}
 
     # --------------------------------------------------------------- Zeitplan

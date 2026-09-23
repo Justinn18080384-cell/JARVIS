@@ -110,9 +110,10 @@ class Jarvis:
         from .modules.remote import RemoteModule
         from .modules.briefing import BriefingModule
         from .modules.costs import CostsModule
+        from .modules.focus import FocusModule
 
         # Reihenfolge = Priorität beim Sprachverständnis
-        for cls in (AutomationModule, CoreModule, MemoryModule, VoiceModule, MaintenanceModule, UpdaterModule,
+        for cls in (AutomationModule, CoreModule, FocusModule, MemoryModule, VoiceModule, MaintenanceModule, UpdaterModule,
                     BriefingModule, CostsModule, PCModule, SmartHomeModule, PhoneModule, AIModule, WatcherModule, RemoteModule):
             try:
                 m = cls(self)
@@ -152,6 +153,8 @@ class Jarvis:
 
     # --------------------------------------------------------- UI-Events
     def _forward(self, event, data):
+        if event == "notify" and not data.get("_routed"):
+            return  # erst nach der Modus-Prüfung in _notify an die Oberfläche
         if event == "level":
             now = time.time()
             if now - self._last_level < 0.04:
@@ -181,9 +184,18 @@ class Jarvis:
                 pass
 
     def _notify(self, event, data):
-        if not config.get("app.notifications", True):
+        if data.get("_routed") or not config.get("app.notifications", True):
             return
-        if data.get("speak"):
+        from .modules import focus
+        # Priorität: ausdrücklich angegeben, sonst „Wichtig“ für gesprochene und „Info“ für stille Meldungen
+        prio = int(data.get("priority", 1 if data.get("speak") else 0))
+        if not focus.may_show(prio):
+            focus.add_missed(prio, data.get("title", ""), data.get("text", ""))
+            return
+        if focus.current() != "normal" and prio < focus.rules()[1] and data.get("speak"):
+            focus.add_missed(prio, data.get("title", ""), data.get("text", ""))  # angezeigt, aber nicht vorgelesen
+        bus.emit("notify", **{**data, "priority": prio, "_routed": True})
+        if data.get("speak") and focus.may_speak(prio):
             self.speak(data.get("text", ""))
         visible = False
         try:

@@ -35,7 +35,8 @@ class WatcherModule(Module):
                 if b and not b.power_plugged and b.percent <= 15 and not bat_warned:
                     bat_warned = True
                     bus.emit("battery_low", percent=b.percent)
-                    bus.emit("notify", title="Akku", text=f"Akku nur noch bei {b.percent:.0f} Prozent.", speak=True)
+                    bus.emit("notify", title="Akku", text=f"Akku nur noch bei {b.percent:.0f} Prozent.", speak=True,
+                             priority=3 if b.percent <= 7 else 2)
                 if b and (b.power_plugged or b.percent > 20):
                     bat_warned = False
 
