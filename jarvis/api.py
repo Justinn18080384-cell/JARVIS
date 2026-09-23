@@ -99,9 +99,10 @@ class API:
     @safe
     def dashboard(self):
         from .modules.pc import system
-        from .modules import memory, automation, smarthome
+        from .modules import memory, automation, smarthome, costs
         s = system.stats()
         return {
+            "costs": costs.summary(),
             "system": s,
             "status": self._j.api_status(),
             "memory_count": len(memory.all_facts()),

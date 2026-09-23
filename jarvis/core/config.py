@@ -43,6 +43,12 @@ DEFAULTS = {
         "output_device": None,
         "chime": True,
     },
+    # KI-Kosten (Richtwerte)
+    "costs": {
+        "eur_per_usd": 0.86,
+        "elevenlabs_free_chars": 10000,     # Freikontingent pro Monat
+        "elevenlabs_usd_per_1k_chars": 0,   # 0 = kostenloser Tarif
+    },
     # Sicherheit / Datenschutz
     "security": {
         "confirm_level": 2,             # Aktionen ab dieser Stufe brauchen Bestätigung

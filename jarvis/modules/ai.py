@@ -19,7 +19,7 @@ from ..core.actions import action, registry, S
 from ..core.config import config
 from ..core.events import bus
 from ..core.module import Module, Intent
-from . import memory
+from . import costs, memory
 
 M = "ki"
 _instance = None
@@ -175,6 +175,7 @@ class AIModule(Module):
             self.requests += 1
             bus.emit("ai_request", model=model)
             resp = c.responses.create(model=model, instructions=self._instructions(ctx), input=inp, tools=tools, store=False)
+            costs.track_openai_response(resp, model, "Chat")
             calls = [o for o in resp.output if o.type == "function_call"]
             if not calls:
                 return resp.output_text.strip()
@@ -259,6 +260,7 @@ class AIModule(Module):
         c = self.client()
         kw = {"tools": [{"type": "web_search"}]} if web else {}
         resp = c.responses.create(model=config.get("ai.model"), instructions=system, input=prompt, store=False, **kw)
+        costs.track_openai_response(resp, config.get("ai.model"), "Briefing & Recherche")
         return resp.output_text.strip()
 
     @staticmethod
@@ -279,6 +281,7 @@ class AIModule(Module):
                 {"type": "input_text", "text": question or "Was ist auf meinem Bildschirm zu sehen?"},
                 {"type": "input_image", "image_url": f"data:image/jpeg;base64,{b64}"}]}],
             store=False)
+        costs.track_openai_response(resp, config.get("ai.vision_model") or config.get("ai.model"), "Bildschirmanalyse")
         return resp.output_text.strip()
 
     # ------------------------------------------------------------- Modul

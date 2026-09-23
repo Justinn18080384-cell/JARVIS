@@ -109,10 +109,11 @@ class Jarvis:
         from .modules.watcher import WatcherModule
         from .modules.remote import RemoteModule
         from .modules.briefing import BriefingModule
+        from .modules.costs import CostsModule
 
         # Reihenfolge = Priorität beim Sprachverständnis
         for cls in (AutomationModule, CoreModule, MemoryModule, VoiceModule, MaintenanceModule, UpdaterModule,
-                    BriefingModule, PCModule, SmartHomeModule, PhoneModule, AIModule, WatcherModule, RemoteModule):
+                    BriefingModule, CostsModule, PCModule, SmartHomeModule, PhoneModule, AIModule, WatcherModule, RemoteModule):
             try:
                 m = cls(self)
                 self.modules[m.name] = m

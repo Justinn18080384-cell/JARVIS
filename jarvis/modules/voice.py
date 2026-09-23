@@ -24,6 +24,7 @@ from ..core.actions import action, S
 from ..core.config import config
 from ..core.events import bus
 from ..core.module import Module
+from . import costs
 
 M = "sprache"
 RATE = 16000
@@ -181,7 +182,9 @@ class Speaker:
         style = OPENAI_STYLE + (" Sprich etwas schneller." if rate > 10 else " Sprich etwas langsamer." if rate < -10 else "")
         resp = client.audio.speech.create(model=config.get("voice.openai_tts_model"), voice=config.get("voice.openai_voice"),
                                           input=text, instructions=style, response_format="pcm")
-        return np.frombuffer(resp.content, dtype=np.int16), 24000
+        pcm = np.frombuffer(resp.content, dtype=np.int16)
+        costs.track_openai_tts(len(pcm) / 24000, config.get("voice.openai_tts_model"))
+        return pcm, 24000
 
     def _synth_elevenlabs(self, text):
         import requests
@@ -200,6 +203,7 @@ class Speaker:
         )
         if not r.ok:
             raise RuntimeError(_elevenlabs_error(r))
+        costs.track_elevenlabs(len(text), config.get("voice.elevenlabs_model"))
         return np.frombuffer(r.content, dtype=np.int16), 24000
 
     def _play(self, pcm, sr):
@@ -578,6 +582,7 @@ class VoiceModule(Module):
             client = OpenAI(api_key=secrets.get("openai_api_key"), timeout=30)
             r = client.audio.transcriptions.create(model="gpt-4o-mini-transcribe", file=("audio.wav", buf.getvalue()),
                                                    language="de", prompt="JARVIS, Sprachbefehle am PC.")
+            costs.track_transcription(len(audio) / RATE)
             return r.text
         model = self.whisper()
         segs, _ = model.transcribe(audio.astype(np.float32) / 32768.0, language="de", beam_size=1, vad_filter=True,
@@ -593,6 +598,9 @@ class VoiceModule(Module):
             client = OpenAI(api_key=secrets.get("openai_api_key"), timeout=30)
             r = client.audio.transcriptions.create(model="gpt-4o-mini-transcribe", file=(filename, data),
                                                    language="de", prompt="JARVIS, Sprachbefehle.")
+            usage = getattr(r, "usage", None)
+            seconds = getattr(usage, "seconds", None) if usage else None
+            costs.track_transcription(seconds or len(data) / 4000)   # Handy-Aufnahme (Opus) ≈ 4 kB pro Sekunde
             return r.text
         from faster_whisper.audio import decode_audio
         audio = decode_audio(io.BytesIO(data), sampling_rate=RATE)

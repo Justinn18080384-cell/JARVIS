@@ -203,6 +203,30 @@ async function refreshCoreStats() {
   } catch {}
 }
 
+/* ===================================================== KI-Kosten */
+const eurFmt = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const fmtEur = v => v > 0 && v < 0.01 ? "< 1 Cent" : eurFmt.format(v || 0);
+const fmtUnits = (n, unit) => unit === "Sekunden" ? (n >= 60 ? Math.round(n / 60) + " Min." : Math.round(n) + " Sek.")
+  : Math.round(n).toLocaleString("de-DE") + " " + unit;
+function costsCard(c) {
+  if (!c) return "";
+  // Balken der letzten 30 Tage (fehlende Tage = 0)
+  const byDay = Object.fromEntries((c.days || []).map(d => [d.day, d.eur]));
+  const days = [...Array(30)].map((_, i) => { const t = new Date(Date.now() - (29 - i) * 864e5); const k = t.toLocaleDateString("sv-SE"); return { k, t, v: byDay[k] || 0 }; });
+  const max = Math.max(...days.map(d => d.v), 0.0001);
+  const bars = days.map(d => `<i style="height:${Math.max(2, d.v / max * 100)}%" title="${d.t.toLocaleDateString("de-DE")}: ${fmtEur(d.v)}"></i>`).join("");
+  const rows = (c.by_kind || []).map(k => `<span>${esc(k.service)} · ${esc(k.kind)}</span><span>${k.eur ? fmtEur(k.eur) : "gratis"} <small class="meta">${k.n}× · ${fmtUnits(k.units, k.unit)}</small></span>`).join("");
+  const el = c.elevenlabs_free ? Math.min(100, c.elevenlabs_chars / c.elevenlabs_free * 100) : 0;
+  return `<div class="card span2"><div class="card-head"><h3>KI-Kosten</h3><span class="meta">Richtwerte · genaue Abrechnung bei OpenAI</span></div>
+    <div class="cost-stats"><div><b>${fmtEur(c.today)}</b><span>Heute</span></div><div><b>${fmtEur(c.month)}</b><span>Dieser Monat</span></div>
+      <div><b>${fmtEur(c.prev_month)}</b><span>Letzter Monat</span></div><div><b>${fmtEur(c.all)}</b><span>Insgesamt</span></div></div>
+    <div class="cost-bars" title="Letzte 30 Tage">${bars}</div>
+    ${rows ? `<div class="kv" style="margin-top:12px">${rows}</div>` : `<p class="hint">Diesen Monat noch keine kostenpflichtige KI-Nutzung.</p>`}
+    ${c.elevenlabs_chars ? `<div style="margin-top:12px"><div class="kv"><span>ElevenLabs-Freikontingent</span><span>${c.elevenlabs_chars.toLocaleString("de-DE")} / ${c.elevenlabs_free.toLocaleString("de-DE")} Zeichen</span></div>
+      <div class="bar"><i style="width:${el}%;${el > 85 ? "background:var(--warn)" : ""}"></i></div></div>` : ""}
+    <p class="hint" style="margin-bottom:0">Frag einfach: „Jarvis, wie viel habe ich für KI ausgegeben?“</p></div>`;
+}
+
 /* ===================================================== Dashboard */
 async function renderDashboard() {
   const d = await api.dashboard(); const s = d.system, m = d.status.modules;
@@ -232,6 +256,7 @@ async function renderDashboard() {
       <span>Zimmer</span><span>${d.rooms}</span><span>Smart-Home</span><span>${d.devices} Geräte (${m.smarthome?.on ?? 0} an)</span>
       <span>Handy</span><span>${(m.phone?.devices || []).map(x => esc(x.model)).join(", ") || "nicht verbunden"}</span>
       <span>Fernzugriff</span><span>${m.remote?.enabled ? "aktiv (Port " + m.remote.port + ")" : "aus"}</span></div></div>
+    ${costsCard(d.costs)}
     <div class="card span2"><div class="card-head"><h3>Letzte Aktivitäten</h3></div><div class="log">${d.activity.map(logRow).join("")}</div></div>`;
   if (page === "dashboard") setTimeout(() => page === "dashboard" && renderDashboard(), 4000);
 }

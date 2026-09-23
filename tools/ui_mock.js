@@ -22,7 +22,12 @@
     toggle_mic: async () => true, stop_speaking: async () => true, emergency_stop: async () => true, resume: async () => true, js_error: () => {},
     dashboard: async () => ({ system: { cpu: 23, ram: 51, ram_used: 16.4e9, ram_total: 32e9, cpu_name: "AMD Ryzen 7 5800X", cores: 16, host: "GAMING-PC",
       os: "Windows 11", uptime: 23000, procs: 312, disks: [{ mount: "C:\\", used: 700e9, total: 1000e9, percent: 70 }, { mount: "E:\\", used: 1.6e12, total: 2e12, percent: 81 }],
-      gpu: { name: "NVIDIA GeForce RTX 3070", load: 7, temp: 49 }, battery: null }, status, memory_count: 4, automations: 5, rooms: 2, devices: 3,
+      gpu: { name: "NVIDIA GeForce RTX 3070", load: 7, temp: 49 }, battery: null }, status, memory_count: 4,
+      costs: { today: 0.031, month: 0.84, prev_month: 1.27, all: 2.11, all_n: 412,
+        days: [...Array(30)].map((_, i) => ({ day: new Date(Date.now() - (29 - i) * 864e5).toLocaleDateString("sv-SE"), eur: i % 4 ? Math.random() * 0.06 : 0 })),
+        by_kind: [{ service: "OpenAI", kind: "Chat", n: 180, units: 412000, unit: "Tokens", eur: 0.61 }, { service: "OpenAI", kind: "Spracherkennung", n: 150, units: 690, unit: "Sekunden", eur: 0.03 },
+          { service: "OpenAI", kind: "Briefing & Recherche", n: 6, units: 38000, unit: "Tokens", eur: 0.19 }, { service: "ElevenLabs", kind: "Stimme", n: 90, units: 6120, unit: "Zeichen", eur: 0 }],
+        elevenlabs_chars: 6120, elevenlabs_free: 10000 }, automations: 5, rooms: 2, devices: 3,
       activity: [{ ts: now - 30, kind: "pc", text: "Startet ein Programm (name=Discord) → Discord wird gestartet.", ok: 1 }, { ts: now - 90, kind: "gedächtnis", text: "Speichert eine Information → Gemerkt: Dein Lieblingsspiel ist GTA.", ok: 1 }] }),
     memory_list: async () => [{ key: "lieblingsspiel", label: "Lieblingsspiel", value: "GTA V", updated: now - 100 }, { key: "name", label: "Name", value: "Justin", updated: now - 5000 }],
     automations: async () => [

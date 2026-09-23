@@ -233,6 +233,11 @@ h3 { font: 500 14px var(--display); letter-spacing: .1em; text-transform: upperc
 .dot.bad { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 .dot.warn { background: var(--warn); }
 .span2 { grid-column: span 2; }
+.cost-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.cost-stats b { display: block; font: 500 20px var(--display); color: var(--accent-2); }
+.cost-stats span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
+.cost-bars { display: flex; align-items: flex-end; gap: 3px; height: 46px; margin-top: 12px; }
+.cost-bars i { flex: 1; min-width: 2px; border-radius: 2px 2px 0 0; background: linear-gradient(0deg, var(--accent), var(--accent-2)); opacity: .75; }
 
 /* Smart Home */
 .rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
@@ -296,4 +301,5 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .home-grid { grid-template-columns: 1fr; grid-template-rows: 44% 1fr; }
   .two-col { grid-template-columns: 1fr; }
   .span2 { grid-column: auto; }
+  .cost-stats { grid-template-columns: repeat(2, 1fr); }
 }
