@@ -74,9 +74,67 @@ def ensure_cert():
     return str(cert_f), str(key_f)
 
 
-def pairing_url():
+# ------------------------------------------------------------------ Tailscale (Zugriff von unterwegs)
+TAILSCALE_EXE = r"C:\Program Files\Tailscale\tailscale.exe"
+_ts_cache = (0.0, None)
+
+
+def tailscale_name():
+    """MagicDNS-Name dieses PCs im Tailscale-Netz (z. B. jarvis-pc.tailxxxx.ts.net) – oder None."""
+    global _ts_cache
+    ts, name = _ts_cache
+    if time.time() - ts < 300:
+        return name
+    name = None
+    try:
+        import json
+        import subprocess
+        import os
+        if os.path.exists(TAILSCALE_EXE):
+            out = subprocess.run([TAILSCALE_EXE, "status", "--json"], capture_output=True, text=True, encoding="utf-8",
+                                 errors="replace", timeout=8, creationflags=0x08000000).stdout
+            st = json.loads(out)
+            if st.get("BackendState") == "Running" and st.get("Self", {}).get("Online"):
+                name = (st["Self"].get("DNSName") or "").rstrip(".") or None
+    except Exception as e:
+        log.logger().info("Tailscale nicht verfügbar: %s", e)
+    _ts_cache = (time.time(), name)
+    return name
+
+
+def tailscale_cert():
+    """Echtes Zertifikat (Let's Encrypt) von Tailscale holen bzw. erneuern – Pfade (cert, key) oder None."""
+    import os
+    import subprocess
+    name = tailscale_name()
+    if not name:
+        return None
+    CERT_DIR.mkdir(parents=True, exist_ok=True)
+    cert_f, key_f = CERT_DIR / "ts-cert.pem", CERT_DIR / "ts-key.pem"
+    fresh = cert_f.exists() and time.time() - cert_f.stat().st_mtime < 30 * 86400
+    if not fresh:
+        try:
+            r = subprocess.run([TAILSCALE_EXE, "cert", "--cert-file", str(cert_f), "--key-file", str(key_f), name],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, creationflags=0x08000000)
+            if r.returncode != 0:
+                log.logger().warning("Tailscale-Zertifikat: %s", (r.stderr or r.stdout).strip()[:200])
+        except Exception as e:
+            log.logger().warning("Tailscale-Zertifikat: %s", e)
+    return (str(cert_f), str(key_f)) if cert_f.exists() and key_f.exists() else None
+
+
+def base_url():
+    """Adresse der Handy-App: über Tailscale (zu Hause und unterwegs) oder im Heimnetz."""
+    port = config.get("remote.port", 8765)
+    ts = tailscale_name()
+    if ts and (CERT_DIR / "ts-cert.pem").exists():
+        return f"https://{ts}:{port}"
     scheme = "https" if config.get("remote.https", True) else "http"
-    return f"{scheme}://{lan_ip()}:{config.get('remote.port', 8765)}/#t={config.get('remote.token')}"
+    return f"{scheme}://{lan_ip()}:{port}"
+
+
+def pairing_url():
+    return f"{base_url()}/#t={config.get('remote.token')}"
 
 
 def pairing_qr():
@@ -246,18 +304,33 @@ class RemoteModule(Module):
         try:
             srv = make_server("0.0.0.0", int(config.get("remote.port", 8765)), app, server_class=Server, handler_class=Quiet)
             if config.get("remote.https", True):
-                cert, key = ensure_cert()
+                # Bevorzugt das echte Tailscale-Zertifikat (nötig für Push-Nachrichten auf dem iPhone),
+                # sonst ein selbstsigniertes fürs Heimnetz
+                cert, key = tailscale_cert() or ensure_cert()
                 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
                 ctx.load_cert_chain(cert, key)
                 srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+                self._ssl = ctx
             self.server = srv
             threading.Thread(target=srv.serve_forever, daemon=True, name="remote-api").start()
+            threading.Thread(target=self._renew_loop, daemon=True, name="remote-cert").start()
             log.activity("fernzugriff", f"Handy-App aktiv: {pairing_url().split('#')[0]}")
             return True
         except Exception as e:
             self.server = None
             log.error("Fernzugriff", e)
             return False
+
+    def _renew_loop(self):
+        """Tailscale-Zertifikat täglich prüfen und bei Bedarf erneuern (gilt 90 Tage)."""
+        while self.server:
+            time.sleep(86400)
+            try:
+                paths_ = tailscale_cert()
+                if paths_ and getattr(self, "_ssl", None):
+                    self._ssl.load_cert_chain(*paths_)     # neue Verbindungen nutzen das erneuerte Zertifikat
+            except Exception as e:
+                log.logger().warning("Zertifikat erneuern: %s", e)
 
     def disable(self):
         if self.server:
