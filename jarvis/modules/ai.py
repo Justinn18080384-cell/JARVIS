@@ -42,7 +42,7 @@ OLLAMA_TOOLS = {
     "memory_remember", "memory_recall", "app_open", "app_close", "window_restore", "window_minimize",
     "volume_set", "volume_change", "mute", "media", "pc_lock", "screenshot", "system_info",
     "open_url", "web_search_open", "open_folder", "time_now", "timer",
-    "automation_create", "automation_run", "weather", "device_set", "focus_set",
+    "automation_create", "automation_run", "weather", "device_set", "focus_set", "finance_add", "finance_report",
 }
 # Zusatz für lokale Modelle (Qwen & Co. rutschen sonst gelegentlich ins Russische/Chinesische)
 GERMAN_ONLY = ("WICHTIG: Antworte IMMER und AUSSCHLIESSLICH auf Deutsch. Verwende niemals Wörter aus anderen Sprachen "

@@ -1,4 +1,4 @@
-"""JARVIS – persönlicher Assistent für Windows."""
+﻿"""JARVIS â€“ persÃ¶nlicher Assistent fÃ¼r Windows."""
 
 APP_NAME = "JARVIS"
-VERSION = "1.7.1"
+VERSION = "1.8.0"

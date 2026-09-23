@@ -218,12 +218,14 @@ class API:
     # ----------------------------------------------------------------- Handy
     @safe
     def phone(self):
-        from .modules import phone, remote
+        from .modules import phone, remote, push
         r = self._j.modules.get("remote")
         running = bool(r and r.server)
+        url = remote.pairing_url().split("#")[0]
         return {"adb": bool(phone.adb_path()), "devices": phone.android_devices() + phone.iphone_devices(),
                 "remote": {"enabled": config.get("remote.enabled"), "running": running, "port": config.get("remote.port"),
-                           "url": remote.pairing_url().split("#")[0], "qr": remote.pairing_qr() if running else "",
+                           "url": url, "qr": remote.pairing_qr() if running else "", "tailscale": ".ts.net" in url,
+                           "push_devices": len(push.subscriptions()), "push_mode": config.get("remote.push_mode", "away"),
                            "speak_on_pc": config.get("remote.speak_on_pc"), "clients": r.status()["clients"] if r else 0}}
 
     @safe
@@ -331,6 +333,62 @@ class API:
         log.activity("wartung", f"Daten importiert aus {src.name}")
         threading.Timer(1.5, self._j.restart).start()
         return {"ok": True, "msg": "Importiert – JARVIS startet gleich neu."}
+
+    # ------------------------------------------------------------ Finanzen
+    @safe
+    def finance(self):
+        from .modules import finance
+        return finance.overview()
+
+    @safe
+    def finance_add(self, amount, kind="ausgabe", category=None, note="", day=None):
+        from .modules import finance
+        val = abs(float(str(amount).replace(",", "."))) * (1 if kind == "einnahme" else -1)
+        return finance.add_tx(val, category, note, day=day or None)
+
+    @safe
+    def finance_delete(self, tid):
+        from .modules import finance
+        finance.delete_tx(tid)
+        return True
+
+    @safe
+    def finance_update(self, tid, category=None, note=None):
+        from .modules import finance
+        finance.update_tx(tid, category, note)
+        return True
+
+    @safe
+    def finance_budget(self, category, amount):
+        from .modules import finance
+        return finance.set_budget(category, float(str(amount or 0).replace(",", ".")))
+
+    @safe
+    def finance_sub_add(self, name, amount, interval="monat", next_due=None):
+        from .modules import finance
+        return finance.add_sub(name, float(str(amount).replace(",", ".")), interval, next_due or None)
+
+    @safe
+    def finance_sub_remove(self, sid):
+        from .modules import finance
+        finance.remove_sub(sid)
+        return True
+
+    @safe
+    def finance_import(self):
+        """Kontoauszug (CSV aus dem Online-Banking) auswählen und einlesen."""
+        from pathlib import Path
+        import webview
+        from .modules import finance
+        res = self._j.window.create_file_dialog(webview.FileDialog.OPEN, file_types=("Kontoauszug (*.csv)", "Alle Dateien (*.*)"))
+        if not res:
+            return {"ok": False, "msg": "Abgebrochen."}
+        src = Path(res[0] if isinstance(res, (list, tuple)) else res)
+        try:
+            r = finance.import_csv(src.read_bytes())
+        except ValueError as e:
+            return {"ok": False, "msg": str(e)}
+        return {"ok": True, "msg": f"{r['added']} neue Buchungen importiert" + (f", {r['skipped']} waren schon da." if r["skipped"] else ".")}
 
     # ------------------------------------------------------- Einstellungen
     @safe

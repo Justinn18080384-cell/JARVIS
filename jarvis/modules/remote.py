@@ -13,10 +13,18 @@ API (Header „Authorization: Bearer <token>“):
     POST /api/automation/<id>/run        Profil/Routine starten
     POST /api/stop                       Not-Aus
     GET  /api/activity                   letzte Aktivitäten
+    GET  /api/actions                    alle Fähigkeiten von JARVIS
+    POST /api/action   {name, args}      eine Fähigkeit ausführen (gleiche Sicherheitsabfrage wie per Sprache)
+    POST /api/call/<methode> {args}      dieselben Daten wie die PC-Oberfläche (Startseite, Finanzen, Gedächtnis …)
+    GET  /api/screenshot                 aktuelles Bild vom PC
+    POST /api/volume {value} · /api/media {key}
+    POST /api/finance/import (CSV)       Kontoauszug vom Handy importieren
+    GET  /api/push/key · POST /api/push/subscribe · /api/push/unsubscribe · /api/push/test
 """
 import base64
 import datetime
 import io
+import json
 import ipaddress
 import secrets as pysecrets
 import socket
@@ -126,7 +134,7 @@ def tailscale_cert():
 def base_url():
     """Adresse der Handy-App: über Tailscale (zu Hause und unterwegs) oder im Heimnetz."""
     port = config.get("remote.port", 8765)
-    ts = tailscale_name()
+    ts = tailscale_name() if config.get("remote.https", True) else None
     if ts and (CERT_DIR / "ts-cert.pem").exists():
         return f"https://{ts}:{port}"
     scheme = "https" if config.get("remote.https", True) else "http"
@@ -145,6 +153,13 @@ def pairing_qr():
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+# Methoden der PC-Oberfläche, die auch die Handy-App nutzen darf (keine Fenster-/Datei-Dialoge, keine Schlüssel)
+BRIDGE = {"home", "dashboard", "finance", "finance_add", "finance_delete", "finance_update", "finance_budget", "finance_sub_add",
+          "finance_sub_remove", "focus_set", "missed_clear", "memory_list", "memory_set", "memory_delete", "automations",
+          "automation_run", "smarthome", "device_toggle", "activity", "diagnose", "update_check", "update_install", "apps",
+          "backups", "backup_create"}
+
+
 class RemoteModule(Module):
     name = "remote"
     title = "Fernzugriff / Handy-App"
@@ -155,6 +170,12 @@ class RemoteModule(Module):
         self.state = "idle"
         self.clients = {}
         bus.on("state", lambda e, d: setattr(self, "state", d.get("state", "idle")))
+        bus.on("notify", self._push)
+
+    def _push(self, event, data):
+        if config.get("remote.enabled"):
+            from . import push
+            push.on_notify(event, data)
 
     def start(self):
         if not config.get("remote.token"):
@@ -167,7 +188,7 @@ class RemoteModule(Module):
         log.activity("fernzugriff", "Neuer Zugangs-Token erstellt – alte Kopplungen sind ungültig")
 
     # ------------------------------------------------------------- Befehle
-    def run_command(self, text, source="remote", timeout=60):
+    def run_command(self, text, source="remote", timeout=60, calls=None):
         replies, done = [], threading.Event()
 
         def cb(t):
@@ -175,9 +196,22 @@ class RemoteModule(Module):
                 done.set()
             else:
                 replies.append(t)
-        self.jarvis.brain.submit(text, source=source, on_reply=cb)
+        if calls:
+            self.jarvis.brain.submit_calls(calls, source=source, on_reply=cb)
+        else:
+            self.jarvis.brain.submit(text, source=source, on_reply=cb)
         done.wait(timeout)
         return " ".join(replies) or ("(JARVIS arbeitet noch …)" if not done.is_set() else "Erledigt.")
+
+    def reply_payload(self, reply):
+        """Antwort plus offene Rückfrage (Ja/Nein-Knöpfe bzw. Auswahl am Handy)."""
+        p = self.jarvis.brain.ctx.pending
+        out = {"reply": reply}
+        if p and p.get("type") == "confirm":
+            out["confirm"] = True
+        elif p and p.get("type") == "choose":
+            out["choose"] = [str(o) for o in p.get("options", [])][:8]
+        return out
 
     def status_payload(self):
         from .pc import system
@@ -192,6 +226,8 @@ class RemoteModule(Module):
             "devices": [{k: d[k] for k in ("id", "name", "room", "type", "state")} for d in smarthome.devices()],
             "automations": [{"id": a["id"], "name": a["name"], "type": a["type"]} for a in automation.load_all() if a.get("enabled", True)],
             "ai": self.jarvis.modules["ai"].available() if "ai" in self.jarvis.modules else False,
+            "focus": self.jarvis.modules["focus"].status() if "focus" in self.jarvis.modules else {},
+            "busy": self.jarvis.brain.busy,
         }
 
     # -------------------------------------------------------------- Server
@@ -204,6 +240,8 @@ class RemoteModule(Module):
 
         app = bottle.Bottle()
         mod = self
+        from ..api import API
+        japi = API(self.jarvis)
 
         def auth():
             tok = bottle.request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
@@ -221,8 +259,11 @@ class RemoteModule(Module):
         @app.get("/manifest.webmanifest")
         def manifest():
             bottle.response.content_type = "application/manifest+json"
-            return {"name": "JARVIS", "short_name": "JARVIS", "start_url": "/", "display": "standalone",
-                    "background_color": "#03070c", "theme_color": "#03070c",
+            # Home-Bildschirm-Apps haben auf dem iPhone einen eigenen Speicher – der Zugang muss in der Start-Adresse stecken
+            t = bottle.request.query.get("t", "")
+            start = f"/#t={t}" if t and pysecrets.compare_digest(t, config.get("remote.token") or "") else "/"
+            return {"id": "/", "name": "JARVIS", "short_name": "JARVIS", "start_url": start, "scope": "/", "display": "standalone",
+                    "background_color": "#060504", "theme_color": "#060504",
                     "icons": [{"src": "/icon.png", "sizes": "512x512", "type": "image/png"}]}
 
         @app.get("/icon.png")
@@ -234,11 +275,134 @@ class RemoteModule(Module):
             auth()
             return mod.status_payload()
 
+        @app.get("/sw.js")
+        def service_worker():
+            r = bottle.static_file("remote-sw.js", root=str(paths.UI_DIR))
+            r.set_header("Cache-Control", "no-cache")
+            r.set_header("Service-Worker-Allowed", "/")
+            return r
+
         @app.post("/api/command")
         def command():
             auth()
             text = ((bottle.request.json or {}).get("text") or "").strip()[:2000]
-            return {"reply": mod.run_command(text)}
+            return mod.reply_payload(mod.run_command(text))
+
+        # ------------------------------------------------ alles, was JARVIS am PC kann
+        @app.get("/api/actions")
+        def actions():
+            auth()
+            from ..core.actions import registry
+            return {"items": [{"name": a.name, "description": a.description, "module": a.module, "risk": a.risk,
+                               "params": a.params, "required": a.required} for a in registry.all()]}
+
+        @app.post("/api/action")
+        def run_action():
+            auth()
+            from ..core.actions import registry
+            body = bottle.request.json or {}
+            name, args = body.get("name", ""), body.get("args") or {}
+            act = registry.get(name)
+            if not act or not isinstance(args, dict):
+                bottle.abort(404, "Unbekannte Aktion")
+            args = {k: v for k, v in args.items() if k in act.params and v not in (None, "")}
+            missing = [k for k in act.required if k not in args]
+            if missing:
+                return {"reply": "Es fehlt noch: " + ", ".join(act.params.get(k, {}).get("description", k) for k in missing)}
+            return mod.reply_payload(mod.run_command(None, calls=[(name, args)]))
+
+        @app.post("/api/call/<name>")
+        def api_call(name):
+            auth()
+            if name not in BRIDGE:
+                bottle.abort(404)
+            args = (bottle.request.json or {}).get("args") or []
+            res = getattr(japi, name)(*args[:6])
+            bottle.response.content_type = "application/json"
+            return json.dumps({"result": res}, default=str, ensure_ascii=False)
+
+        @app.get("/api/screenshot")
+        def screenshot():
+            auth()
+            from .pc import system
+            bottle.response.content_type = "image/jpeg"
+            bottle.response.set_header("Cache-Control", "no-store")
+            log.activity("fernzugriff", "Bildschirmfoto ans Handy gesendet")
+            return system.screenshot_bytes(1600)
+
+        @app.post("/api/volume")
+        def volume():
+            auth()
+            from .pc import system
+            body = bottle.request.json or {}
+            if "mute" in body:
+                system.set_mute(bool(body["mute"]))
+            if "value" in body:
+                system.set_volume(max(0, min(100, float(body["value"]))))
+            return {"volume": _safe(system.get_volume), "muted": _safe(system.is_muted)}
+
+        @app.post("/api/media")
+        def media():
+            auth()
+            from .pc import system
+            key = (bottle.request.json or {}).get("key")
+            if key not in ("play", "next", "prev", "stop"):
+                bottle.abort(400)
+            system.media_key(key)
+            return {"ok": True}
+
+        @app.post("/api/finance/import")
+        def finance_import():
+            auth()
+            from . import finance
+            try:
+                r = finance.import_csv(bottle.request.body.read(8 * 2**20))
+            except ValueError as e:
+                return {"ok": False, "msg": str(e)}
+            return {"ok": True, "msg": f"{r['added']} neue Buchungen importiert" + (f", {r['skipped']} waren schon da." if r["skipped"] else ".")}
+
+        # ------------------------------------------------------------ Push
+        @app.get("/api/push/key")
+        def push_key():
+            auth()
+            from . import push
+            return {"key": push.public_key(), "enabled": bool(config.get("remote.push", True)),
+                    "mode": config.get("remote.push_mode", "away"), "devices": len(push.subscriptions())}
+
+        @app.post("/api/push/subscribe")
+        def push_subscribe():
+            auth()
+            from . import push
+            body = bottle.request.json or {}
+            try:
+                push.subscribe(body.get("subscription") or {}, body.get("device", ""))
+            except ValueError as e:
+                return {"ok": False, "msg": str(e)}
+            return {"ok": True}
+
+        @app.post("/api/push/unsubscribe")
+        def push_unsubscribe():
+            auth()
+            from . import push
+            push.unsubscribe((bottle.request.json or {}).get("endpoint", ""))
+            return {"ok": True}
+
+        @app.post("/api/push/test")
+        def push_test():
+            auth()
+            from . import push
+            ok, bad = push.send("JARVIS", "Test: Push-Nachrichten funktionieren.", tag="test")
+            return {"ok": ok > 0, "sent": ok, "failed": bad}
+
+        @app.post("/api/push/mode")
+        def push_mode():
+            auth()
+            body = bottle.request.json or {}
+            if body.get("mode") in ("away", "always"):
+                config.set("remote.push_mode", body["mode"])
+            if "enabled" in body:
+                config.set("remote.push", bool(body["enabled"]))
+            return {"ok": True}
 
         @app.post("/api/voice")
         def voice():

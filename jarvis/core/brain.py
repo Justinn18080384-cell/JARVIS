@@ -66,6 +66,10 @@ class Brain:
             bus.emit("reply", text=text, kind="user remote")
         self.q.put((text, source, on_reply))
 
+    def submit_calls(self, calls, source="remote", on_reply=None):
+        """Aktionen direkt ausführen lassen (ohne Sprachverständnis) – in der Warteschlange wie ein Befehl."""
+        self.q.put((list(calls), source, on_reply))
+
     def emergency_stop(self, announce=True):
         self.ctx.cancel.set()
         self.jarvis.voice_stop()
@@ -115,7 +119,11 @@ class Brain:
             self.ctx.cancel.clear()
             try:
                 bus.emit("state", state="thinking")
-                answer = self.handle(text, source)
+                if isinstance(text, list):      # fertige Aktionen (z. B. Knopf in der Handy-App) – gleiche Sicherheitsprüfung
+                    self.ctx.source, self.ctx.trusted = source, False
+                    answer = self.execute(text)
+                else:
+                    answer = self.handle(text, source)
                 if answer:
                     self.reply(answer)
             except Exception as e:  # nie einen Traceback beim Nutzer zeigen

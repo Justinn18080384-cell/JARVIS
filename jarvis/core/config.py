@@ -100,6 +100,9 @@ DEFAULTS = {
         "token": "",
         "https": True,                  # nötig, damit Handy-Browser das Mikrofon freigeben
         "speak_on_pc": False,           # Antworten zusätzlich am PC vorlesen
+        "push": True,                   # Meldungen als Push-Nachricht aufs Handy
+        "push_mode": "away",            # away = nur wenn ich nicht am PC bin (oder dringend) | always
+        "push_min_priority": 0,
     },
     "briefing": {
         "city": "",                     # leer = Wohnort aus dem Gedächtnis

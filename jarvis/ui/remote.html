@@ -5,74 +5,142 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#060504">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JARVIS">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icon.png">
 <title>JARVIS</title>
 <style>
-:root { --bg:#060504; --panel:rgba(20,17,12,.8); --line:rgba(212,175,55,.18); --line2:rgba(212,175,55,.4); --text:#ece5d6; --muted:#8c8372;
-  --accent:#d4af37; --accent2:#f1d88f; --ok:#8fcf8a; --warn:#e8a64a; --danger:#e0605a; --violet:#c9a2e0; }
+:root { --bg:#060504; --panel:rgba(22,18,12,.82); --line:rgba(212,175,55,.16); --line2:rgba(212,175,55,.4); --text:#ece5d6; --muted:#8c8372;
+  --accent:#d4af37; --accent2:#f1d88f; --ok:#8fcf8a; --warn:#e8a64a; --danger:#e0605a; --violet:#c9a2e0; --blue:#6fb4ff;
+  --tab-h:62px; }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html,body { margin:0; height:100%; background:radial-gradient(600px 400px at 50% 20%, rgba(212,175,55,.1), transparent 70%), var(--bg); color:var(--text);
-  font:15px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; overscroll-behavior:none; }
-body { display:flex; flex-direction:column; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
-header { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
-header h1 { margin:0; font-size:15px; letter-spacing:.35em; color:var(--accent2); font-weight:600; }
+html,body { margin:0; height:100%; background:radial-gradient(700px 420px at 50% -80px, rgba(212,175,55,.13), transparent 70%), var(--bg); color:var(--text);
+  font:15px/1.45 -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif; overscroll-behavior:none; }
+body { display:flex; flex-direction:column; padding-top:env(safe-area-inset-top); }
+button { font:inherit; color:inherit; cursor:pointer; }
+input, select { font:inherit; color:var(--text); }
+header { display:flex; align-items:center; gap:10px; padding:10px 16px; }
+header h1 { margin:0; font-size:14px; letter-spacing:.38em; color:var(--accent2); font-weight:600; }
 .pill { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
   border:1px solid var(--line); border-radius:20px; padding:3px 10px; }
 .pill i { width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px var(--ok); }
 .pill.off i { background:var(--danger); box-shadow:0 0 8px var(--danger); }
 .pill.busy i { background:var(--violet); box-shadow:0 0 8px var(--violet); animation:bl .6s infinite; }
 @keyframes bl { 50% { opacity:.3 } }
-nav { display:flex; gap:4px; padding:8px 12px 0; }
-nav button { flex:1; background:transparent; border:1px solid transparent; color:var(--muted); border-radius:10px; padding:8px 4px; font-size:13px; }
-nav button.active { color:var(--accent2); border-color:var(--line2); background:rgba(212,175,55,.1); }
 main { flex:1; overflow:hidden; position:relative; }
-.view { position:absolute; inset:0; overflow-y:auto; padding:12px 14px; display:none; }
-.view.active { display:block; }
-#chat { display:flex; flex-direction:column; gap:8px; padding-bottom:10px; }
-.msg { max-width:86%; padding:9px 13px; border-radius:14px; white-space:pre-wrap; word-wrap:break-word; animation:in .2s; }
-@keyframes in { from { opacity:0; transform:translateY(4px) } }
+.view { position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:6px 14px 24px; display:none; }
+.view.active { display:block; animation:fade .25s; }
+@keyframes fade { from { opacity:0; transform:translateY(6px) } }
+#v-talk { display:none; flex-direction:column; padding-bottom:0; }
+#v-talk.active { display:flex; }
+.tabbar { display:flex; border-top:1px solid var(--line); background:rgba(8,7,5,.94); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  padding-bottom:env(safe-area-inset-bottom); }
+.tabbar button { flex:1; height:var(--tab-h); background:none; border:0; color:var(--muted); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:10.5px; letter-spacing:.04em; position:relative; }
+.tabbar svg { width:23px; height:23px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.tabbar button.active { color:var(--accent2); }
+.tabbar button.active::before { content:""; position:absolute; top:0; left:30%; right:30%; height:2px; background:var(--accent); border-radius:0 0 3px 3px; box-shadow:0 0 10px var(--accent); }
+.badge { position:absolute; top:7px; left:calc(50% + 6px); background:var(--danger); color:#fff; font-size:10px; border-radius:9px; padding:0 5px; min-width:16px; line-height:16px; }
+h2.sec { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); font-weight:600; margin:20px 2px 8px; }
+.card { border:1px solid var(--line); background:var(--panel); border-radius:16px; padding:14px; margin-bottom:12px; }
+.card h3 { margin:0 0 10px; font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent2); font-weight:600; display:flex; align-items:center; gap:8px; }
+.card h3 .r { margin-left:auto; font-size:11px; letter-spacing:.05em; text-transform:none; color:var(--muted); font-weight:400; }
+.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.stat { border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:rgba(255,255,255,.015); }
+.stat b { display:block; font-size:21px; color:var(--accent2); font-weight:400; font-variant-numeric:tabular-nums; }
+.stat span { font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
+.tile { border:1px solid var(--line); border-radius:14px; padding:12px; background:rgba(255,255,255,.02); text-align:left; font-size:14px; width:100%; min-height:62px; transition:transform .1s, border-color .2s; }
+.tile:active { transform:scale(.97); }
+.tile small { display:block; color:var(--muted); font-size:11px; margin-top:2px; }
+.tile.on { border-color:rgba(241,216,143,.6); box-shadow:0 0 18px rgba(212,175,55,.15) inset; }
+.tile.on small { color:var(--accent2); }
+.qb { border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.02); padding:12px 4px 10px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:11.5px; color:var(--text); }
+.qb:active { transform:scale(.95); background:rgba(212,175,55,.1); }
+.qb svg { width:24px; height:24px; fill:none; stroke:var(--accent2); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.qb.warn svg { stroke:var(--warn); } .qb.danger svg { stroke:var(--danger); }
+.chips { display:flex; gap:6px; flex-wrap:wrap; }
+.chip { border:1px solid var(--line); background:rgba(255,255,255,.02); border-radius:18px; padding:7px 13px; font-size:13px; }
+.chip.active { border-color:var(--accent); color:var(--bg); background:var(--accent); }
+.btn { width:100%; padding:13px; border-radius:13px; border:1px solid var(--line2); background:rgba(212,175,55,.13); color:var(--accent2); font-size:15px; }
+.btn.small { width:auto; padding:8px 14px; font-size:13px; border-radius:10px; }
+.btn.ghost { background:transparent; border-color:var(--line); color:var(--text); }
+.btn.danger { border-color:rgba(224,96,90,.5); background:rgba(224,96,90,.12); color:var(--danger); letter-spacing:.1em; }
+.row { display:flex; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(212,175,55,.08); }
+.row:last-child { border-bottom:0; }
+.row .grow { flex:1; min-width:0; }
+.row .grow small { display:block; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row .amt { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.x { background:none; border:0; color:var(--muted); font-size:18px; padding:4px 8px; }
+.bar { height:6px; border-radius:4px; background:rgba(255,255,255,.06); overflow:hidden; margin-top:5px; }
+.bar i { display:block; height:100%; background:linear-gradient(90deg, #9c7a24, var(--accent2)); border-radius:4px; transition:width .6s; }
+.kv { display:flex; justify-content:space-between; gap:10px; font-size:14px; }
+.kv span:last-child { color:var(--muted); font-variant-numeric:tabular-nums; }
+.muted { color:var(--muted); font-size:13px; }
+.hello { padding:8px 2px 4px; }
+.hello b { font-size:24px; font-weight:300; color:var(--text); display:block; }
+.hello span { color:var(--muted); font-size:13px; }
+.banner { border:1px solid var(--line2); background:linear-gradient(135deg, rgba(212,175,55,.16), rgba(212,175,55,.04)); border-radius:16px; padding:14px; margin:10px 0 12px; }
+.banner p { margin:0 0 10px; font-size:14px; }
+input.in, select.in { width:100%; background:rgba(10,8,5,.85); border:1px solid var(--line); border-radius:12px; padding:12px 13px; font-size:16px; outline:none; }
+input.in:focus, select.in:focus { border-color:var(--accent); }
+input[type=range] { width:100%; accent-color:var(--accent); height:28px; }
+label.sw { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; }
+label.sw input { width:22px; height:22px; accent-color:var(--accent); }
+/* Chat */
+.core { display:grid; place-items:center; padding:14px 0 4px; flex:none; }
+.orb { width:108px; height:108px; border-radius:50%; position:relative;
+  background:radial-gradient(circle, #fff 0 8%, var(--accent) 18%, rgba(212,175,55,.25) 45%, transparent 70%); box-shadow:0 0 40px rgba(212,175,55,.35); }
+.orb::before, .orb::after { content:""; position:absolute; inset:-13px; border-radius:50%; border:2px dashed rgba(212,175,55,.5); animation:spin 12s linear infinite; }
+.orb::after { inset:-24px; border:1px solid rgba(212,175,55,.25); border-top-color:var(--accent); animation-duration:5s; animation-direction:reverse; }
+.orb.listen { background:radial-gradient(circle, #fff 0 8%, var(--blue) 18%, rgba(111,180,255,.3) 45%, transparent 70%); }
+.orb.think { background:radial-gradient(circle, #fff 0 8%, var(--violet) 18%, rgba(201,162,224,.3) 45%, transparent 70%); }
+.orb.think::after { animation-duration:1s; }
+@keyframes spin { to { transform:rotate(360deg) } }
+.hint { text-align:center; color:var(--muted); font-size:13px; margin:14px 0 4px; flex:none; }
+#chat { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:6px 0 12px; }
+.msg { max-width:86%; padding:9px 13px; border-radius:15px; white-space:pre-wrap; word-wrap:break-word; animation:fade .2s; }
 .msg.me { align-self:flex-end; background:rgba(212,175,55,.16); border:1px solid rgba(212,175,55,.35); border-bottom-right-radius:4px; }
 .msg.j { align-self:flex-start; background:rgba(255,255,255,.04); border:1px solid var(--line); border-bottom-left-radius:4px; }
 .msg.j::before { content:"JARVIS"; display:block; font-size:10px; letter-spacing:.25em; color:var(--accent); margin-bottom:2px; }
-.msg.sys { align-self:center; color:var(--muted); font-size:12px; }
-.core { display:grid; place-items:center; padding:18px 0 6px; }
-.orb { width:120px; height:120px; border-radius:50%; position:relative;
-  background:radial-gradient(circle, #fff 0 8%, var(--accent) 18%, rgba(212,175,55,.25) 45%, transparent 70%);
-  box-shadow:0 0 40px rgba(212,175,55,.35); transition:transform .15s; }
-.orb::before, .orb::after { content:""; position:absolute; inset:-14px; border-radius:50%; border:2px dashed rgba(212,175,55,.5); animation:spin 12s linear infinite; }
-.orb::after { inset:-26px; border:1px solid rgba(212,175,55,.25); border-top-color:var(--accent); animation-duration:5s; animation-direction:reverse; }
-.orb.listen { background:radial-gradient(circle, #fff 0 8%, #3caaff 18%, rgba(60,170,255,.3) 45%, transparent 70%); }
-.orb.think { background:radial-gradient(circle, #fff 0 8%, var(--violet) 18%, rgba(232,166,74,.3) 45%, transparent 70%); }
-.orb.think::after { animation-duration:1s; }
-@keyframes spin { to { transform:rotate(360deg) } }
-.hint { text-align:center; color:var(--muted); font-size:13px; margin:22px 0 6px; }
-footer { display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--line); background:rgba(8,6,4,.8); align-items:center; }
-footer input { flex:1; background:rgba(10,8,5,.8); border:1px solid var(--line); border-radius:22px; padding:12px 15px; color:var(--text); font-size:16px; outline:none; min-width:0; }
-footer input:focus { border-color:var(--accent); }
+.msg.sys { align-self:center; color:var(--muted); font-size:12px; text-align:center; }
+.answers { display:flex; gap:8px; flex-wrap:wrap; align-self:flex-start; }
+.suggest { display:flex; gap:6px; overflow-x:auto; padding:0 0 8px; flex:none; scrollbar-width:none; }
+.suggest::-webkit-scrollbar { display:none; }
+.suggest .chip { white-space:nowrap; }
+.composer { display:flex; gap:8px; padding:8px 0 10px; align-items:center; flex:none; }
+.composer input { flex:1; min-width:0; background:rgba(10,8,5,.85); border:1px solid var(--line); border-radius:22px; padding:12px 15px; font-size:16px; outline:none; }
+.composer input:focus { border-color:var(--accent); }
 .round { width:48px; height:48px; border-radius:50%; flex:none; display:grid; place-items:center; border:1px solid var(--line2);
-  background:linear-gradient(180deg, rgba(212,175,55,.22), rgba(212,175,55,.08)); color:var(--accent2); }
+  background:linear-gradient(180deg, rgba(212,175,55,.24), rgba(212,175,55,.08)); color:var(--accent2); }
 .round svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
-#mic.rec { background:rgba(255,77,106,.3); border-color:var(--danger); color:#fff; animation:pulse 1.1s infinite; }
-@keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(255,77,106,.5) } 100% { box-shadow:0 0 0 16px rgba(255,77,106,0) } }
-.card { border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:14px; margin-bottom:12px; }
-.card h3 { margin:0 0 10px; font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--accent2); font-weight:600; }
-.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
-.stat { border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
-.stat b { display:block; font-size:22px; color:var(--accent2); font-weight:500; }
-.stat span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
-.tile { border:1px solid var(--line); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); color:var(--text); text-align:left; font-size:14px; width:100%; }
-.tile small { display:block; color:var(--muted); font-size:11px; margin-top:2px; }
-.tile.on { border-color:rgba(255,214,107,.6); box-shadow:0 0 16px rgba(255,214,107,.15) inset; }
-.tile.on small { color:#ffd66b; }
-.danger { width:100%; padding:14px; border-radius:12px; border:1px solid rgba(255,77,106,.5); background:rgba(255,77,106,.12); color:var(--danger); font-size:15px; letter-spacing:.1em; }
-.btn { width:100%; padding:12px; border-radius:12px; border:1px solid var(--line2); background:rgba(212,175,55,.12); color:var(--accent2); font-size:15px; }
-.row { display:flex; gap:10px; align-items:center; justify-content:space-between; }
-label.sw { display:flex; justify-content:space-between; align-items:center; padding:8px 0; color:var(--text); }
-#login { position:fixed; inset:0; background:var(--bg); display:none; flex-direction:column; justify-content:center; padding:30px; gap:14px; text-align:center; z-index:9; }
-#login input { background:rgba(10,8,5,.8); border:1px solid var(--line); border-radius:12px; padding:13px; color:var(--text); font-size:16px; }
-.muted { color:var(--muted); font-size:13px; }
+#mic.rec { background:rgba(224,96,90,.3); border-color:var(--danger); color:#fff; animation:pulse 1.1s infinite; }
+@keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(224,96,90,.5) } 100% { box-shadow:0 0 0 16px rgba(224,96,90,0) } }
+/* Blätter */
+.sheet { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:flex-end; z-index:20; }
+.sheet.open { display:flex; }
+.sheet .box { width:100%; max-height:88%; overflow-y:auto; background:#0e0c08; border-top:1px solid var(--line2); border-radius:20px 20px 0 0;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom)); }
+.sheet .box h3 { margin:0 0 14px; font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent2); }
+.sheet .box .f { display:flex; flex-direction:column; gap:10px; }
+.sheet img { width:100%; border-radius:10px; border:1px solid var(--line); }
+#toast { position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 10px); transform:translate(-50%,-120%); transition:transform .3s; z-index:30;
+  background:#16130d; border:1px solid var(--line2); border-radius:14px; padding:10px 16px; font-size:14px; max-width:92%; box-shadow:0 10px 30px rgba(0,0,0,.5); }
+#toast.show { transform:translate(-50%,0); }
+#login { position:fixed; inset:0; background:var(--bg); display:none; flex-direction:column; justify-content:center; padding:30px; gap:14px; text-align:center; z-index:40; }
+.fin-big { display:flex; align-items:baseline; gap:8px; }
+.fin-big b { font-size:32px; font-weight:300; color:var(--accent2); font-variant-numeric:tabular-nums; }
+.seg { display:flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.seg button { flex:1; background:none; border:0; padding:10px; font-size:14px; color:var(--muted); }
+.seg button.active { background:rgba(212,175,55,.16); color:var(--accent2); }
+.search { position:sticky; top:-6px; z-index:2; background:var(--bg); padding:6px 0 10px; }
+.act { width:100%; text-align:left; background:none; border:0; border-bottom:1px solid rgba(212,175,55,.08); padding:11px 2px; display:flex; gap:10px; align-items:center; }
+.act small { display:block; color:var(--muted); font-size:12px; }
+.act .grow { flex:1; }
+.risk { font-size:10px; border:1px solid var(--line); border-radius:8px; padding:1px 6px; color:var(--muted); white-space:nowrap; }
+.risk.r2 { color:var(--warn); border-color:rgba(232,166,74,.4); } .risk.r3 { color:var(--danger); border-color:rgba(224,96,90,.4); }
+.empty { color:var(--muted); font-size:13px; padding:6px 0; }
 </style>
 </head>
 <body>
@@ -81,82 +149,186 @@ label.sw { display:flex; justify-content:space-between; align-items:center; padd
   <h1>JARVIS</h1>
   <div class="pill off" id="pill"><i></i><span>Verbinde …</span></div>
 </header>
-<nav>
-  <button data-v="talk" class="active">Sprechen</button>
-  <button data-v="home">Zuhause</button>
-  <button data-v="status">Status</button>
-</nav>
+
 <main>
-  <section class="view active" id="v-talk">
+  <!-- ============ Start ============ -->
+  <section class="view active" id="v-start">
+    <div class="hello"><b id="hello">Hallo</b><span id="hello-sub">–</span></div>
+    <div id="push-banner"></div>
+    <div class="card"><h3>Modus <span class="r" id="focus-info"></span></h3><div class="chips" id="modes"></div></div>
+    <div class="grid" id="start-stats"></div>
+    <div id="missed"></div>
+    <h2 class="sec">Schnell</h2>
+    <div class="grid3" id="quick-start"></div>
+    <div id="upcoming"></div>
+  </section>
+
+  <!-- ============ Sprechen ============ -->
+  <section class="view" id="v-talk">
     <div class="core"><div class="orb" id="orb"></div></div>
-    <div class="hint" id="hint">Tippe auf das Mikrofon und sprich – oder schreibe unten.</div>
+    <div class="hint" id="hint">Tippe auf das Mikrofon und sprich – oder schreibe.</div>
     <div id="chat"></div>
-  </section>
-  <section class="view" id="v-home">
-    <div class="card"><h3>Routinen &amp; Profile</h3><div class="grid" id="autos"></div></div>
-    <div id="rooms"></div>
-  </section>
-  <section class="view" id="v-status">
-    <div class="card"><h3 id="pc-name">PC</h3><div class="grid" id="stats"></div></div>
-    <div class="card"><h3>Einstellungen</h3>
-      <label class="sw">Antworten vorlesen (am Handy)<input type="checkbox" id="tts"></label>
-      <p class="muted">Tipp: Über „Zum Startbildschirm hinzufügen“ wird JARVIS zur App auf deinem Handy.</p>
+    <div class="suggest" id="suggest"></div>
+    <div class="composer">
+      <button class="round" id="mic" aria-label="Sprechen"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <input id="input" placeholder="Nachricht an JARVIS …" enterkeyhint="send" autocomplete="off">
+      <button class="round" id="send" aria-label="Senden"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z"/></svg></button>
     </div>
-    <button class="danger" id="stop">NOT-AUS</button>
+  </section>
+
+  <!-- ============ Steuern ============ -->
+  <section class="view" id="v-control">
+    <h2 class="sec" style="margin-top:8px">PC</h2>
+    <div class="grid3" id="pc-buttons"></div>
+    <div class="card" style="margin-top:12px"><h3>Lautstärke <span class="r" id="vol-val">–</span></h3>
+      <input type="range" id="vol" min="0" max="100" step="1">
+      <div class="grid3" style="margin-top:8px" id="media"></div></div>
+    <h2 class="sec">Profile &amp; Routinen</h2>
+    <div class="grid" id="autos"></div>
+    <div id="rooms"></div>
+    <h2 class="sec">Alle Fähigkeiten</h2>
+    <div class="search"><input class="in" id="act-search" placeholder="Suchen … z. B. Lautstärke, Timer, Programm"></div>
+    <div id="actions"></div>
+  </section>
+
+  <!-- ============ Finanzen ============ -->
+  <section class="view" id="v-money">
+    <div class="card" style="margin-top:8px"><h3 id="fin-month">Dieser Monat <span class="r" id="fin-count"></span></h3>
+      <div class="fin-big"><b id="fin-spent">–</b><span class="muted">ausgegeben</span></div>
+      <div class="grid" style="margin-top:10px" id="fin-stats"></div></div>
+    <div class="card"><h3>Schnell eintragen</h3>
+      <div class="f" style="display:flex;flex-direction:column;gap:10px">
+        <div class="seg" id="fin-kind"><button data-k="ausgabe" class="active">Ausgabe</button><button data-k="einnahme">Einnahme</button></div>
+        <div style="display:flex;gap:8px"><input class="in" id="fin-amount" inputmode="decimal" placeholder="Betrag €" style="flex:0 0 38%"><input class="in" id="fin-note" placeholder="Wofür? z. B. Rewe"></div>
+        <select class="in" id="fin-cat"><option value="">Kategorie automatisch</option></select>
+        <button class="btn" id="fin-save">Eintragen</button>
+      </div></div>
+    <div class="card"><h3>Wofür</h3><div id="fin-cats"></div></div>
+    <div class="card"><h3>Budgets <span class="r"><button class="btn small ghost" id="fin-bud">+ Budget</button></span></h3><div id="fin-buds"></div></div>
+    <div class="card"><h3>Abos <span class="r" id="fin-subsum"></span></h3><div id="fin-subs"></div>
+      <button class="btn small ghost" id="fin-sub-add" style="margin-top:8px">+ Abo</button></div>
+    <div class="card"><h3>Letzte Buchungen</h3><div id="fin-recent"></div></div>
+    <label class="btn ghost" style="display:block;text-align:center">Kontoauszug (CSV) importieren<input type="file" id="fin-csv" accept=".csv,text/csv,text/plain" hidden></label>
+    <p class="muted" style="text-align:center">Alles bleibt auf deinem PC. JARVIS meldet sich bei keiner Bank an.</p>
+  </section>
+
+  <!-- ============ Mehr ============ -->
+  <section class="view" id="v-more">
+    <div class="card" style="margin-top:8px"><h3>Push-Nachrichten</h3><div id="push-card"></div></div>
+    <div class="card"><h3>Gedächtnis <span class="r"><button class="btn small ghost" id="mem-add">+ Eintrag</button></span></h3><div id="memory"></div></div>
+    <div class="card"><h3>Aktivität</h3><div id="activity"></div></div>
+    <div class="card"><h3>Einstellungen</h3>
+      <label class="sw">Antworten am Handy vorlesen<input type="checkbox" id="tts"></label>
+      <div class="kv" style="padding:8px 0"><span>Version</span><span id="ver">–</span></div>
+      <button class="btn ghost" id="upd">Nach Updates suchen</button>
+    </div>
+    <button class="btn danger" id="stop">NOT-AUS</button>
     <p></p>
-    <button class="btn" id="logout">Abmelden</button>
+    <button class="btn ghost" id="logout">Abmelden</button>
+    <p class="muted" style="text-align:center;margin-top:16px">Tipp: Teilen → „Zum Home-Bildschirm“ macht JARVIS zur App.</p>
   </section>
 </main>
-<footer id="footer">
-  <button class="round" id="mic" aria-label="Sprechen"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-  <input id="input" placeholder="Nachricht an JARVIS …" enterkeyhint="send" autocomplete="off">
-  <button class="round" id="send" aria-label="Senden"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z"/></svg></button>
-</footer>
+
+<nav class="tabbar" id="tabbar">
+  <button data-v="start" class="active"><svg viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12z"/><path d="M12 8l4 4-4 4-4-4z"/></svg>Start<span class="badge" id="badge" hidden></span></button>
+  <button data-v="talk"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Sprechen</button>
+  <button data-v="control"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="17" cy="6" r="2"/><circle cx="14" cy="18" r="2"/></svg>Steuern</button>
+  <button data-v="money"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/><path d="M6 6l9-3 1.5 3"/></svg>Finanzen</button>
+  <button data-v="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>Mehr</button>
+</nav>
+
+<div class="sheet" id="sheet"><div class="box" id="sheet-box"></div></div>
+<div id="toast"></div>
 <div id="login">
   <h2 style="color:var(--accent2);letter-spacing:.3em;margin:0">JARVIS</h2>
   <p class="muted">Scanne den QR-Code in JARVIS am PC (Handy → Handy-App) oder gib den Zugangs-Token ein.</p>
-  <input id="tok" placeholder="Zugangs-Token">
+  <input class="in" id="tok" placeholder="Zugangs-Token">
   <button class="btn" id="tok-ok">Verbinden</button>
 </div>
 
 <script>
 "use strict";
-const $ = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const eur = v => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(v || 0);
+const I = {
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  screen: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  shot: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
+  restart: '<path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/>',
+  power: '<path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/>',
+  prev: '<path d="M18 6l-8 6 8 6zM6 6v12"/>', play: '<path d="M7 5l12 7-12 7z"/>', next: '<path d="M6 6l8 6-8 6zM18 6v12"/>',
+  mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/>', game: '<rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 11v3M5.5 12.5h3M16 12h.01M18 14h.01"/>',
+  clean: '<path d="M3 21h18M5 21l2-9h10l2 9M9 12V4h6v8"/>', net: '<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/>',
+  brief: '<path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/>', timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+};
+const svg = k => `<svg viewBox="0 0 24 24">${I[k] || I.chat}</svg>`;
 
 // Token aus dem QR-Code (#t=…) übernehmen und aus der Adresszeile entfernen
 const m = location.hash.match(/t=([\w-]+)/);
-if (m) { ls.set("token", m[1]); history.replaceState(null, "", "/"); }
+if (m) ls.set("token", m[1]);   // bleibt in der Adresse, damit „Zum Home-Bildschirm“ angemeldet bleibt
 let token = ls.get("token", "");
+if (token) { $('link[rel="manifest"]').href = "/manifest.webmanifest?t=" + encodeURIComponent(token); if (!m) history.replaceState(null, "", "/#t=" + token); }
 
 async function call(path, opts = {}) {
-  const r = await fetch(path, { ...opts, headers: { Authorization: "Bearer " + token, ...(opts.headers || {}) } });
+  const r = await fetch(path, { ...opts, headers: { Authorization: "Bearer " + token, ...(opts.body && !(opts.body instanceof Blob) && !(opts.body instanceof File) ? { "Content-Type": "application/json" } : {}), ...(opts.headers || {}) } });
   if (r.status === 401) { showLogin(); throw new Error("401"); }
   if (!r.ok) throw new Error("HTTP " + r.status);
-  return r.json();
+  return (r.headers.get("content-type") || "").includes("json") ? r.json() : r.blob();
+}
+const post = (path, data) => call(path, { method: "POST", body: JSON.stringify(data || {}) });
+async function pc(method, ...args) {
+  const r = await post("/api/call/" + method, { args });
+  if (r.result && typeof r.result === "object" && !Array.isArray(r.result) && r.result.error) { toast(r.result.error); throw new Error(r.result.error); }
+  return r.result;
 }
 function showLogin() { $("#login").style.display = "flex"; }
 $("#tok-ok").onclick = () => { token = $("#tok").value.trim(); ls.set("token", token); $("#login").style.display = "none"; refresh(); };
 $("#logout").onclick = () => { ls.set("token", ""); token = ""; showLogin(); };
 
-// Ansichten
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
-  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
-  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "v-" + b.dataset.v));
-  $("#footer").style.display = b.dataset.v === "talk" ? "flex" : "none";
-  refresh();
-});
-
-// Chat
-let log = ls.get("remote_chat", []);
-if (!Array.isArray(log)) log = [];
-function add(kind, text, save = true) {
-  const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text;
-  $("#chat").appendChild(d); $("#v-talk").scrollTop = 1e9;
-  if (save) { log.push([kind, text]); log = log.slice(-60); ls.set("remote_chat", log); }
+let toastT;
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 3200); }
+function sheet(html, onOpen) {
+  $("#sheet-box").innerHTML = html; $("#sheet").classList.add("open");
+  onOpen && onOpen($("#sheet-box"));
 }
-log.forEach(e => Array.isArray(e) && add(e[0], e[1], false));
+function closeSheet() { $("#sheet").classList.remove("open"); }
+$("#sheet").addEventListener("click", e => { if (e.target.id === "sheet" || e.target.closest("[data-close]")) closeSheet(); });
+
+/* ------------------------------------------------------------ Ansichten */
+let view = ls.get("view", "start");
+function go(v) {
+  view = v; ls.set("view", v);
+  $$("#tabbar button").forEach(x => x.classList.toggle("active", x.dataset.v === v));
+  $$(".view").forEach(s => s.classList.toggle("active", s.id === "v-" + v));
+  refresh();
+  if (v === "talk") $("#chat").scrollTop = 1e9;
+}
+$$("#tabbar button").forEach(b => b.onclick = () => go(b.dataset.v));
+
+/* ------------------------------------------------------------ Sprechen */
+let chatLog = ls.get("remote_chat", []);
+if (!Array.isArray(chatLog)) chatLog = [];
+function add(kind, text, save = true) {
+  $$(".answers").forEach(a => a.remove());
+  const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text;
+  $("#chat").appendChild(d); $("#chat").scrollTop = 1e9;
+  if (save) { chatLog.push([kind, text]); chatLog = chatLog.slice(-60); ls.set("remote_chat", chatLog); }
+}
+chatLog.forEach(e => Array.isArray(e) && add(e[0], e[1], false));
+function answers(r) {
+  const opts = r.confirm ? ["Ja", "Nein"] : r.choose || null;
+  if (!opts) return;
+  const d = document.createElement("div"); d.className = "answers";
+  d.innerHTML = opts.map(o => `<button class="chip">${esc(o)}</button>`).join("");
+  d.querySelectorAll("button").forEach(b => b.onclick = () => { d.remove(); sendText(b.textContent); });
+  $("#chat").appendChild(d); $("#chat").scrollTop = 1e9;
+}
 function speak(t) {
   if (!$("#tts").checked || !("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
@@ -166,18 +338,22 @@ function speak(t) {
 }
 $("#tts").checked = ls.get("tts", true);
 $("#tts").onchange = () => ls.set("tts", $("#tts").checked);
-
 function orb(s) { $("#orb").className = "orb " + (s || ""); }
+function showReply(r) { add("j", r.reply || "Erledigt."); speak(r.reply || ""); answers(r); }
 async function sendText(text) {
   text = text.trim(); if (!text) return;
+  if (view !== "talk") go("talk");
   add("me", text); orb("think");
-  try { const r = await call("/api/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-    add("j", r.reply); speak(r.reply);
-  } catch (e) { if (e.message !== "401") add("sys", "Keine Verbindung zu JARVIS."); }
+  try { showReply(await post("/api/command", { text })); }
+  catch (e) { if (e.message !== "401") add("sys", "Keine Verbindung zu JARVIS."); }
   orb("");
 }
 $("#send").onclick = () => { sendText($("#input").value); $("#input").value = ""; };
 $("#input").addEventListener("keydown", e => { if (e.key === "Enter") $("#send").click(); });
+const SUGGEST = ["Wie ist das Wetter?", "Was habe ich verpasst?", "Wie viel habe ich diesen Monat ausgegeben?", "Morgen-Briefing", "Wie lange habe ich heute gespielt?",
+  "Stell einen Timer auf 10 Minuten", "Welche Abos habe ich?", "Systeminfo"];
+$("#suggest").innerHTML = SUGGEST.map(s => `<button class="chip">${esc(s)}</button>`).join("");
+$$("#suggest .chip").forEach(b => b.onclick = () => sendText(b.textContent));
 
 // Spracheingabe: Aufnahme -> an JARVIS (Transkription am PC)
 let rec = null, chunks = [], stream = null, autoStop = null;
@@ -196,39 +372,293 @@ $("#mic").onclick = async () => {
     try {
       const r = await call("/api/voice", { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
       if (r.transcript) add("me", r.transcript);
-      add("j", r.reply); speak(r.reply);
+      showReply(r);
     } catch (e) { if (e.message !== "401") add("sys", "Keine Verbindung zu JARVIS."); }
-    orb(""); $("#hint").textContent = "Tippe auf das Mikrofon und sprich – oder schreibe unten.";
+    orb(""); $("#hint").textContent = "Tippe auf das Mikrofon und sprich – oder schreibe.";
   };
   rec.start(); $("#mic").classList.add("rec"); orb("listen"); $("#hint").textContent = "Ich höre zu … (nochmal tippen zum Senden)";
-  autoStop = setTimeout(() => rec.state === "recording" && rec.stop(), 15000);
+  autoStop = setTimeout(() => rec.state === "recording" && rec.stop(), 20000);
   if ("speechSynthesis" in window) speechSynthesis.cancel();
 };
 
-// Status & Zuhause
+/* ------------------------------------------------------------ Aktionen */
+async function runAction(name, args = {}, label) {
+  toast((label || "Wird ausgeführt") + " …");
+  try {
+    const r = await post("/api/action", { name, args });
+    if (r.confirm || r.choose) { go("talk"); add("j", r.reply); answers(r); return; }
+    toast(r.reply || "Erledigt.");
+    add("j", r.reply || "Erledigt.");
+  } catch (e) { if (e.message !== "401") toast("Keine Verbindung zu JARVIS."); }
+  setTimeout(refresh, 600);
+}
+async function showScreenshot() {
+  sheet(`<h3>Bildschirm vom PC</h3><p class="muted">Wird geladen …</p><button class="btn ghost" data-close>Schließen</button>`);
+  try {
+    const blob = await call("/api/screenshot");
+    const url = URL.createObjectURL(blob);
+    $("#sheet-box").innerHTML = `<h3>Bildschirm vom PC</h3><img src="${url}" alt="Bildschirm"><p class="muted">Gedrückt halten zum Sichern.</p>
+      <div class="grid"><button class="btn ghost" id="shot-again">Neu laden</button><button class="btn ghost" data-close>Schließen</button></div>`;
+    $("#shot-again").onclick = showScreenshot;
+  } catch { $("#sheet-box").innerHTML = `<h3>Bildschirm vom PC</h3><p class="muted">Konnte kein Bild holen.</p><button class="btn ghost" data-close>Schließen</button>`; }
+}
+const PC_BUTTONS = [
+  ["lock", "Sperren", () => runAction("pc_lock", {}, "PC sperren")],
+  ["screen", "Bildschirm aus", () => runAction("monitors_off", {}, "Bildschirm aus")],
+  ["shot", "Bildschirm ansehen", showScreenshot],
+  ["moon", "Energiesparen", () => runAction("pc_sleep", {}, "Energiesparen"), "warn"],
+  ["restart", "Neustart", () => runAction("pc_restart", {}, "Neustart"), "warn"],
+  ["power", "Ausschalten", () => runAction("pc_shutdown", {}, "Ausschalten"), "danger"],
+];
+$("#pc-buttons").innerHTML = PC_BUTTONS.map((b, i) => `<button class="qb ${b[3] || ""}" data-i="${i}">${svg(b[0])}${b[1]}</button>`).join("");
+$$("#pc-buttons .qb").forEach(b => b.onclick = PC_BUTTONS[b.dataset.i][2]);
+const MEDIA = [["prev", "Zurück", "prev"], ["play", "Play/Pause", "play"], ["next", "Weiter", "next"]];
+$("#media").innerHTML = MEDIA.map(x => `<button class="qb" data-k="${x[2]}">${svg(x[0])}${x[1]}</button>`).join("");
+$$("#media .qb").forEach(b => b.onclick = () => post("/api/media", { key: b.dataset.k }).catch(() => {}));
+let volT;
+$("#vol").oninput = () => { $("#vol-val").textContent = $("#vol").value + " %"; clearTimeout(volT); volT = setTimeout(() => post("/api/volume", { value: +$("#vol").value }), 150); };
+const QUICK = [
+  ["brief", "Briefing", () => sendText("Morgen-Briefing")], ["game", "Spielzeit", () => sendText("Wie lange habe ich heute gespielt?")],
+  ["shot", "Bildschirm", showScreenshot], ["net", "Internet-Check", () => sendText("Prüf mal das Internet")],
+  ["clean", "Aufräumen", () => sendText("Wie viel Speicherplatz kann ich freimachen?")], ["lock", "PC sperren", () => runAction("pc_lock", {}, "PC sperren")],
+];
+$("#quick-start").innerHTML = QUICK.map((b, i) => `<button class="qb" data-i="${i}">${svg(b[0])}${b[1]}</button>`).join("");
+$$("#quick-start .qb").forEach(b => b.onclick = QUICK[b.dataset.i][2]);
+
+// Alle Fähigkeiten
+let ACTIONS = [];
+const MOD_DE = { pc: "PC", modus: "Modus", finanzen: "Finanzen", kosten: "KI-Kosten", gedächtnis: "Gedächtnis" };
+function renderActions() {
+  const q = $("#act-search").value.trim().toLowerCase();
+  const list = ACTIONS.filter(a => !q || (a.description + " " + a.name + " " + a.module).toLowerCase().includes(q));
+  $("#actions").innerHTML = list.map(a => `<button class="act" data-n="${esc(a.name)}"><span class="grow">${esc(a.description)}<small>${esc(MOD_DE[a.module] || a.module || "")}</small></span>
+    ${a.risk >= 2 ? `<span class="risk r${a.risk}">${a.risk >= 3 ? "kritisch" : "fragt nach"}</span>` : ""}</button>`).join("") || '<p class="empty">Nichts gefunden.</p>';
+  $$("#actions .act").forEach(b => b.onclick = () => actionSheet(ACTIONS.find(a => a.name === b.dataset.n)));
+}
+$("#act-search").oninput = renderActions;
+function actionSheet(a) {
+  const ps = Object.entries(a.params || {});
+  if (!ps.length) return runAction(a.name, {}, a.description);
+  const field = ([k, p]) => {
+    const req = a.required.includes(k);
+    const lbl = `<span class="muted">${esc(p.description || k)}${req ? "" : " (optional)"}</span>`;
+    if (p.enum) return `<label>${lbl}<select class="in" data-p="${k}">${req ? "" : '<option value=""></option>'}${p.enum.map(o => `<option>${esc(o)}</option>`).join("")}</select></label>`;
+    if (p.type === "boolean") return `<label class="sw">${lbl}<input type="checkbox" data-p="${k}" data-bool></label>`;
+    return `<label>${lbl}<input class="in" data-p="${k}" ${p.type === "number" || p.type === "integer" ? 'inputmode="decimal"' : ""}></label>`;
+  };
+  sheet(`<h3>${esc(a.description)}</h3><div class="f">${ps.map(field).join("")}<button class="btn" id="act-run">Ausführen</button><button class="btn ghost" data-close>Abbrechen</button></div>`, box => {
+    $("#act-run", box).onclick = () => {
+      const args = {};
+      $$("[data-p]", box).forEach(el => {
+        const p = a.params[el.dataset.p];
+        let v = el.dataset.bool !== undefined ? el.checked : el.value.trim();
+        if (v === "") return;
+        if ((p.type === "number" || p.type === "integer") && typeof v === "string") v = parseFloat(v.replace(",", "."));
+        args[el.dataset.p] = v;
+      });
+      closeSheet(); runAction(a.name, args, a.description);
+    };
+  });
+}
+
+/* ------------------------------------------------------------ Start */
+const MODES = [["normal", "Normal"], ["gaming", "Gaming"], ["film", "Film"], ["arbeit", "Arbeit"], ["schlafen", "Schlafen"]];
+function renderModes(f) {
+  $("#modes").innerHTML = MODES.map(([k, l]) => `<button class="chip ${f.mode === k ? "active" : ""}" data-m="${k}">${l}</button>`).join("");
+  $("#focus-info").textContent = f.mode && f.mode !== "normal" ? (f.manual ? "von dir gewählt" : "automatisch") : "";
+  $$("#modes .chip").forEach(b => b.onclick = async () => { const r = await pc("focus_set", b.dataset.m); toast(typeof r === "string" ? r : (r.text || "Modus gewechselt")); refresh(); });
+}
+async function renderStart() {
+  const h = await pc("home");
+  const hr = new Date().getHours();
+  $("#hello").textContent = (hr < 5 ? "Gute Nacht" : hr < 11 ? "Guten Morgen" : hr < 18 ? "Hallo" : "Guten Abend") + (status?.user ? ", " + status.user : "");
+  $("#hello-sub").textContent = h.weather ? `${h.weather.city}: ${h.weather.temp}° · ${h.weather.desc} · ${h.weather.min}–${h.weather.max}°` : new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+  renderModes(h.focus || {});
+  const fin = await pc("finance").catch(() => null);
+  const st = [["CPU", Math.round(h.cpu) + " %"], ["RAM", Math.round(h.ram) + " %"],
+    h.gpu ? ["GPU", Math.round(h.gpu.load) + " % · " + h.gpu.temp + "°"] : null,
+    fin ? ["Ausgaben " + fin.month_name.slice(0, 3), eur(fin.month_spent)] : null,
+    ["KI-Kosten Monat", eur(h.costs.month)], ["KI", h.ai?.available ? (h.ai.provider === "ollama" ? "lokal" : "bereit") : "aus"]].filter(Boolean);
+  $("#start-stats").innerHTML = st.map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
+  $("#upcoming").innerHTML = h.upcoming?.length ? `<h2 class="sec">Als Nächstes</h2><div class="card">${h.upcoming.map(u => `<div class="kv" style="padding:4px 0"><span>${esc(u.name)}</span><span>${esc(u.when)}</span></div>`).join("")}</div>` : "";
+  if (h.missed) {
+    const d = await pc("dashboard");
+    $("#missed").innerHTML = `<div class="card"><h3>Verpasst <span class="r"><button class="btn small ghost" id="missed-ok">Gelesen</button></span></h3>
+      ${d.missed.map(x => `<div class="row"><div class="grow">${esc(x.text)}<small>${new Date(x.ts * 1000).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${x.title ? " · " + esc(x.title) : ""}</small></div></div>`).join("")}</div>`;
+    $("#missed-ok").onclick = async () => { await pc("missed_clear"); refresh(); };
+  } else $("#missed").innerHTML = "";
+  $("#badge").hidden = !h.missed; $("#badge").textContent = h.missed || "";
+  renderPushBanner();
+}
+
+/* ------------------------------------------------------------ Steuern */
 const TYPE = { light: "Licht", plug: "Steckdose", tv: "Fernseher", speaker: "Lautsprecher", fan: "Ventilator", climate: "Heizung", cover: "Rollladen", other: "Gerät" };
+async function renderControl() {
+  if (status?.pc?.volume != null && document.activeElement !== $("#vol")) { $("#vol").value = status.pc.volume; $("#vol-val").textContent = status.pc.volume + " %"; }
+  $("#autos").innerHTML = status.automations.map(a => `<button class="tile" data-a="${a.id}">${esc(a.name)}<small>${{ profile: "Profil", routine: "Routine", command: "Befehl" }[a.type]}</small></button>`).join("")
+    || '<p class="empty">Noch keine angelegt. Sag z. B. „Wenn ich Gaming sage, starte Discord und Steam“.</p>';
+  const rooms = {}; status.devices.forEach(d => (rooms[d.room || "Ohne Zimmer"] ||= []).push(d));
+  $("#rooms").innerHTML = Object.entries(rooms).map(([r, ds]) => `<h2 class="sec">${esc(r)}</h2><div class="grid">
+    ${ds.map(d => `<button class="tile ${d.state === "on" ? "on" : ""}" data-d="${d.id}">${esc(d.name)}<small>${TYPE[d.type] || ""} · ${d.state === "on" ? "an" : "aus"}</small></button>`).join("")}</div>`).join("");
+  $$("#autos [data-a]").forEach(b => b.onclick = async () => { toast("Starte " + b.firstChild.textContent + " …"); const r = await call(`/api/automation/${b.dataset.a}/run`, { method: "POST" }); toast(r.reply || "Gestartet."); });
+  $$("#rooms [data-d]").forEach(b => b.onclick = async () => { b.classList.toggle("on"); await call(`/api/device/${b.dataset.d}/toggle`, { method: "POST" }); refresh(); });
+  if (!ACTIONS.length) { ACTIONS = (await call("/api/actions")).items.sort((a, b) => a.description.localeCompare(b.description, "de")); renderActions(); }
+}
+
+/* ------------------------------------------------------------ Finanzen */
+let finKind = "ausgabe", finCats = [];
+$$("#fin-kind button").forEach(b => b.onclick = () => { finKind = b.dataset.k; $$("#fin-kind button").forEach(x => x.classList.toggle("active", x === b)); $("#fin-cat").disabled = finKind === "einnahme"; });
+$("#fin-save").onclick = async () => {
+  const a = $("#fin-amount").value.trim();
+  if (!a || isNaN(parseFloat(a.replace(",", ".")))) return toast("Bitte einen Betrag eingeben.");
+  const tx = await pc("finance_add", a, finKind, finKind === "einnahme" ? "Einnahmen" : ($("#fin-cat").value || null), $("#fin-note").value.trim());
+  $("#fin-amount").value = ""; $("#fin-note").value = "";
+  toast(`Eingetragen: ${eur(Math.abs(tx.amount))} · ${tx.category}`); renderMoney();
+};
+const INTERVAL_DE = { monat: "monatlich", quartal: "vierteljährlich", halbjahr: "halbjährlich", jahr: "jährlich", woche: "wöchentlich" };
+async function renderMoney() {
+  const f = await pc("finance");
+  finCats = f.categories;
+  if ($("#fin-cat").options.length < 2) $("#fin-cat").innerHTML += f.categories.filter(c => c !== "Einnahmen").map(c => `<option>${esc(c)}</option>`).join("");
+  $("#fin-month").firstChild.textContent = f.month_name + " ";
+  $("#fin-count").textContent = f.count + " Buchungen";
+  $("#fin-spent").textContent = eur(f.month_spent);
+  const left = f.month_earned - f.month_spent;
+  $("#fin-stats").innerHTML = [["Eingenommen", eur(f.month_earned)], ["Übrig", eur(left)], ["Heute", eur(f.today_spent)],
+    f.forecast != null ? ["Prognose", eur(f.forecast)] : ["Letzter Monat", eur(f.prev_spent)]].map(([k, v]) => `<div class="stat"><b style="font-size:17px">${v}</b><span>${k}</span></div>`).join("");
+  const max = Math.max(1, ...f.by_category.map(c => c.sum));
+  $("#fin-cats").innerHTML = f.by_category.map(c => `<div style="padding:5px 0"><div class="kv"><span>${esc(c.category)}</span><span>${eur(c.sum)}</span></div><div class="bar"><i style="width:${c.sum / max * 100}%"></i></div></div>`).join("") || '<p class="empty">Diesen Monat noch keine Ausgaben.</p>';
+  $("#fin-buds").innerHTML = f.budgets.map(b => `<div style="padding:5px 0"><div class="kv"><span>${esc(b.category)}</span><span>${eur(b.used)} / ${eur(b.monthly)}</span></div>
+    <div class="bar"><i style="width:${Math.min(100, b.pct)}%;${b.pct >= 100 ? "background:var(--danger)" : b.pct >= 80 ? "background:var(--warn)" : ""}"></i></div></div>`).join("") || '<p class="empty">Keine Budgets – JARVIS warnt dich bei 80 % und 100 %.</p>';
+  $("#fin-subsum").textContent = f.subs.length ? "≈ " + eur(f.subs_monthly) + " / Monat" : "";
+  $("#fin-subs").innerHTML = f.subs.map(s => `<div class="row"><div class="grow">${esc(s.name)}<small>${INTERVAL_DE[s.interval] || ""} · nächste ${new Date(s.next_due + "T12:00").toLocaleDateString("de-DE")}</small></div>
+    <span class="amt">${eur(s.amount)}</span><button class="x" data-sub="${s.id}">✕</button></div>`).join("") || '<p class="empty">Noch keine Abos.</p>';
+  $("#fin-recent").innerHTML = f.recent.slice(0, 25).map(t => `<div class="row"><div class="grow">${esc(t.note || t.category)}<small>${new Date(t.day + "T12:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} · ${esc(t.category)}</small></div>
+    <span class="amt" style="color:${t.amount > 0 ? "var(--ok)" : "var(--text)"}">${t.amount > 0 ? "+" : ""}${eur(t.amount)}</span><button class="x" data-tx="${t.id}">✕</button></div>`).join("") || '<p class="empty">Noch nichts eingetragen.</p>';
+  $$("#fin-recent [data-tx]").forEach(b => b.onclick = async () => { if (confirm("Buchung löschen?")) { await pc("finance_delete", +b.dataset.tx); renderMoney(); } });
+  $$("#fin-subs [data-sub]").forEach(b => b.onclick = async () => { if (confirm("Abo aus der Übersicht entfernen? (Kündigen musst du beim Anbieter.)")) { await pc("finance_sub_remove", +b.dataset.sub); renderMoney(); } });
+}
+$("#fin-bud").onclick = () => sheet(`<h3>Monatsbudget</h3><div class="f"><select class="in" id="b-c"><option>Gesamt</option>${finCats.filter(c => c !== "Einnahmen").map(c => `<option>${esc(c)}</option>`).join("")}</select>
+  <input class="in" id="b-a" inputmode="decimal" placeholder="Betrag pro Monat (0 = entfernen)"><button class="btn" id="b-ok">Speichern</button><button class="btn ghost" data-close>Abbrechen</button></div>`,
+  box => $("#b-ok", box).onclick = async () => { await pc("finance_budget", $("#b-c", box).value, $("#b-a", box).value || "0"); closeSheet(); renderMoney(); });
+$("#fin-sub-add").onclick = () => sheet(`<h3>Neues Abo</h3><div class="f"><input class="in" id="s-n" placeholder="Name, z. B. Netflix"><input class="in" id="s-a" inputmode="decimal" placeholder="Betrag €">
+  <select class="in" id="s-i">${Object.entries(INTERVAL_DE).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+  <label><span class="muted">Nächste Abbuchung (optional)</span><input class="in" type="date" id="s-d"></label>
+  <button class="btn" id="s-ok">Speichern</button><button class="btn ghost" data-close>Abbrechen</button></div>`,
+  box => $("#s-ok", box).onclick = async () => { const n = $("#s-n", box).value.trim(), a = $("#s-a", box).value.trim(); if (!n || !a) return toast("Name und Betrag fehlen.");
+    await pc("finance_sub_add", n, a, $("#s-i", box).value, $("#s-d", box).value || null); closeSheet(); renderMoney(); });
+$("#fin-csv").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  toast("Importiere …");
+  try { const r = await call("/api/finance/import", { method: "POST", body: f, headers: { "Content-Type": "text/csv" } }); toast(r.msg); } catch { toast("Import fehlgeschlagen."); }
+  e.target.value = ""; renderMoney();
+};
+
+/* ------------------------------------------------------------ Mehr */
+async function renderMore() {
+  $("#ver").textContent = status?.version || "–";
+  const mem = await pc("memory_list");
+  $("#memory").innerHTML = mem.slice(0, 40).map(r => `<div class="row"><div class="grow">${esc(r.label)}<small>${esc(r.value)}</small></div><button class="x" data-k="${esc(r.key)}">✕</button></div>`).join("")
+    || '<p class="empty">Noch nichts gespeichert. Sag z. B. „Merk dir, mein Lieblingsspiel ist GTA“.</p>';
+  $$("#memory [data-k]").forEach(b => b.onclick = async () => { if (confirm("Vergessen?")) { await pc("memory_delete", b.dataset.k); renderMore(); } });
+  const act = await pc("activity", 15);
+  $("#activity").innerHTML = act.map(e => `<div class="row"><div class="grow" style="${e.ok ? "" : "color:var(--danger)"}">${esc(e.text)}<small>${new Date(e.ts * 1000).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · ${esc(e.kind)}</small></div></div>`).join("");
+  renderPushCard();
+}
+$("#mem-add").onclick = () => sheet(`<h3>Merken</h3><div class="f"><input class="in" id="m-l" placeholder="Was? z. B. Lieblingsessen"><input class="in" id="m-v" placeholder="Wert, z. B. Pizza">
+  <button class="btn" id="m-ok">Speichern</button><button class="btn ghost" data-close>Abbrechen</button></div>`,
+  box => $("#m-ok", box).onclick = async () => { const l = $("#m-l", box).value.trim(), v = $("#m-v", box).value.trim(); if (!l || !v) return; await pc("memory_set", l, v); closeSheet(); renderMore(); });
+$("#upd").onclick = async () => { toast("Suche …"); const r = await pc("update_check"); toast(typeof r === "string" ? r : (r.text || r.msg || JSON.stringify(r))); };
+$("#stop").onclick = async () => {
+  if (status?.state === "halted") { await post("/api/resume"); toast("Automationen wieder aktiv."); }
+  else { await post("/api/stop"); toast("Not-Aus ausgelöst."); }
+  refresh();
+};
+
+/* ------------------------------------------------------------ Push */
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+let swReg = null;
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").then(r => { swReg = r; renderPushBanner(); }).catch(() => {});
+const b64ToBytes = s => { s = s.replace(/-/g, "+").replace(/_/g, "/"); s += "=".repeat((4 - s.length % 4) % 4); return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+async function pushState() {
+  if (!pushSupported || !swReg) return "unsupported";
+  if (Notification.permission === "denied") return "denied";
+  const sub = await swReg.pushManager.getSubscription();
+  return sub ? "on" : "off";
+}
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return toast("Mitteilungen wurden nicht erlaubt.");
+    const { key } = await call("/api/push/key");
+    const sub = await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+    const r = await post("/api/push/subscribe", { subscription: sub.toJSON(), device: isIOS ? "iPhone" : (navigator.userAgentData?.platform || "Handy") });
+    if (!r.ok) throw new Error(r.msg);
+    toast("Push-Nachrichten sind an.");
+    await post("/api/push/test");
+  } catch (e) { toast("Push konnte nicht aktiviert werden: " + (e.message || e)); }
+  renderPushBanner(); renderPushCard();
+}
+async function disablePush() {
+  const sub = await swReg?.pushManager.getSubscription();
+  if (sub) { await post("/api/push/unsubscribe", { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+  toast("Push-Nachrichten sind aus."); renderPushCard(); renderPushBanner();
+}
+async function renderPushBanner() {
+  const st = await pushState();
+  const el = $("#push-banner");
+  if (st === "off" && !ls.get("push_dismissed", false)) {
+    el.innerHTML = `<div class="banner"><p><b>Push-Nachrichten aktivieren?</b><br><span class="muted">Timer, Erinnerungen, Budget-Warnungen und alle Meldungen von JARVIS – auch wenn die App zu ist.</span></p>
+      <div class="grid"><button class="btn" id="pb-on">Aktivieren</button><button class="btn ghost" id="pb-no">Später</button></div></div>`;
+    $("#pb-on").onclick = enablePush; $("#pb-no").onclick = () => { ls.set("push_dismissed", true); renderPushBanner(); };
+  } else if (st === "unsupported" && isIOS && !standalone && !ls.get("a2hs_dismissed", false)) {
+    el.innerHTML = `<div class="banner"><p><b>Tipp:</b> Tippe unten auf <b>Teilen</b> → <b>„Zum Home-Bildschirm“</b>. Dann wird JARVIS zur App und kann dir Push-Nachrichten schicken.</p>
+      <button class="btn ghost small" id="a2-no">Verstanden</button></div>`;
+    $("#a2-no").onclick = () => { ls.set("a2hs_dismissed", true); renderPushBanner(); };
+  } else el.innerHTML = "";
+}
+async function renderPushCard() {
+  const st = await pushState();
+  let info = {};
+  try { info = await call("/api/push/key"); } catch {}
+  const box = $("#push-card");
+  if (st === "unsupported") {
+    box.innerHTML = `<p class="muted">${isIOS && !standalone ? "Auf dem iPhone gehen Push-Nachrichten nur, wenn JARVIS über Teilen → „Zum Home-Bildschirm“ als App geöffnet wird (ab iOS 16.4)." : "Dieser Browser unterstützt keine Push-Nachrichten."}</p>`;
+    return;
+  }
+  if (st === "denied") { box.innerHTML = `<p class="muted">Mitteilungen sind für JARVIS blockiert. Einstellungen → Mitteilungen → JARVIS → Erlauben.</p>`; return; }
+  box.innerHTML = st === "on" ? `<p><span style="color:var(--ok)">●</span> Aktiv auf diesem Handy</p>
+      <div class="seg" id="pmode"><button data-m="away" class="${info.mode !== "always" ? "active" : ""}">Nur wenn ich weg bin</button><button data-m="always" class="${info.mode === "always" ? "active" : ""}">Immer</button></div>
+      <p class="muted">„Nur wenn ich weg bin“: wenn am PC seit 5 Minuten niemand tippt – Dringendes kommt immer. Modi (z. B. Schlafen) gelten auch hier.</p>
+      <div class="grid"><button class="btn ghost" id="p-test">Test senden</button><button class="btn ghost" id="p-off">Ausschalten</button></div>`
+    : `<p class="muted">Bekomme Meldungen von JARVIS aufs Handy – auch wenn die App geschlossen ist.</p><button class="btn" id="p-on">Aktivieren</button>`;
+  $("#p-on") && ($("#p-on").onclick = enablePush);
+  $("#p-off") && ($("#p-off").onclick = disablePush);
+  $("#p-test") && ($("#p-test").onclick = async () => { const r = await post("/api/push/test"); toast(r.ok ? "Test gesendet – kommt gleich an." : "Senden fehlgeschlagen."); });
+  $$("#pmode button").forEach(b => b.onclick = async () => { await post("/api/push/mode", { mode: b.dataset.m }); renderPushCard(); });
+}
+
+/* ------------------------------------------------------------ Status */
+let status = null;
 async function refresh() {
   if (!token) return showLogin();
-  let s;
-  try { s = await call("/api/status"); } catch (e) { $("#pill").className = "pill off"; $("#pill span").textContent = "Offline"; return; }
-  const busy = ["thinking", "executing", "listening", "speaking"].includes(s.state);
-  $("#pill").className = "pill" + (s.state === "halted" ? " off" : busy ? " busy" : "");
-  $("#pill span").textContent = { halted: "Not-Aus", thinking: "Denkt", executing: "Führt aus", speaking: "Spricht", listening: "Hört zu" }[s.state] || "Online";
-  $("#pc-name").textContent = s.pc.host;
-  $("#stats").innerHTML = [["CPU", s.pc.cpu.toFixed(0) + "%"], ["RAM", s.pc.ram.toFixed(0) + "%"],
-    s.pc.gpu ? ["GPU", s.pc.gpu.load.toFixed(0) + "% · " + s.pc.gpu.temp + "°"] : null, s.pc.volume != null ? ["Lautstärke", s.pc.volume + "%"] : null,
-    ["KI", s.ai ? "bereit" : "lokal"], ["Version", s.version]].filter(Boolean).map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join("");
-  $("#autos").innerHTML = s.automations.map(a => `<button class="tile" data-a="${a.id}">${esc(a.name)}<small>${{ profile: "Profil", routine: "Routine", command: "Befehl" }[a.type]}</small></button>`).join("")
-    || '<p class="muted">Noch keine angelegt.</p>';
-  const rooms = {}; s.devices.forEach(d => (rooms[d.room || "Ohne Zimmer"] ||= []).push(d));
-  $("#rooms").innerHTML = Object.entries(rooms).map(([r, ds]) => `<div class="card"><h3>${esc(r)}</h3><div class="grid">
-    ${ds.map(d => `<button class="tile ${d.state === "on" ? "on" : ""}" data-d="${d.id}">${esc(d.name)}<small>${TYPE[d.type] || ""} · ${d.state === "on" ? "an" : "aus"}</small></button>`).join("")}</div></div>`).join("")
-    || '<div class="card"><p class="muted">Noch keine Smart-Home-Geräte. Sag z. B. „Füge im Wohnzimmer eine Lampe namens Deckenlicht hinzu“.</p></div>';
-  document.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => { const r = await call(`/api/automation/${b.dataset.a}/run`, { method: "POST" }); add("j", r.reply); });
-  document.querySelectorAll("[data-d]").forEach(b => b.onclick = async () => { b.classList.toggle("on"); await call(`/api/device/${b.dataset.d}/toggle`, { method: "POST" }); refresh(); });
+  try { status = await call("/api/status"); } catch (e) { $("#pill").className = "pill off"; $("#pill span").textContent = "Offline"; return; }
+  const busy = ["thinking", "executing", "listening", "speaking"].includes(status.state);
+  $("#pill").className = "pill" + (status.state === "halted" ? " off" : busy ? " busy" : "");
+  $("#pill span").textContent = { halted: "Not-Aus", thinking: "Denkt", executing: "Führt aus", speaking: "Spricht", listening: "Hört zu" }[status.state] || "Online";
+  $("#stop").textContent = status.state === "halted" ? "AUTOMATIONEN FORTSETZEN" : "NOT-AUS";
+  try {
+    if (view === "start") await renderStart();
+    else if (view === "control") await renderControl();
+    else if (view === "money") await renderMoney();
+    else if (view === "more") await renderMore();
+  } catch (e) { console.error(e); }
 }
-$("#stop").onclick = async () => { await call("/api/stop", { method: "POST" }); add("sys", "Not-Aus ausgelöst."); refresh(); };
-refresh(); setInterval(() => document.visibilityState === "visible" && refresh(), 5000);
+go(view);
+setInterval(() => document.visibilityState === "visible" && ["start", "control"].includes(view) && refresh(), 6000);
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && refresh());
 </script>
 </body>
 </html>

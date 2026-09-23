@@ -91,6 +91,7 @@ window.JARVIS = {
       case "screenshot": toast("Screenshot gespeichert (Bilder/JARVIS).", "Screenshot"); break;
       case "wake": $("#btn-mic").classList.add("on"); break;
       case "task": onTask(d); break;
+      case "finance_changed": if (page === "finance") renderFinance(); break;
     }
   },
 };
@@ -182,7 +183,7 @@ function go(p) {
   if (p === "dashboard") Live.reset("d-");   // beim Betreten zählt Reveal von 0 hoch, danach gleiten die Werte
   $$("#dock button").forEach(b => b.classList.toggle("active", b.dataset.page === p));
   $$(".page").forEach(s => s.classList.toggle("active", s.id === "page-" + p));
-  const done = ({ dashboard: renderDashboard, memory: renderMemory, automations: renderAutomations, "home-auto": renderRooms,
+  const done = ({ dashboard: renderDashboard, finance: renderFinance, memory: renderMemory, automations: renderAutomations, "home-auto": renderRooms,
      phone: renderPhone, log: renderLog, diagnose: renderBackups, settings: renderSettings }[p] || (() => {}))();
   // Seite erst aufbauen, wenn ihr Inhalt da ist
   Promise.resolve(done).catch(() => {}).then(() => { if (page === p) Reveal.page($("#page-" + p)); });
@@ -410,6 +411,75 @@ async function renderDashboard() {
   if (page === "dashboard") setTimeout(() => page === "dashboard" && renderDashboard(), 4000);
 }
 
+/* ===================================================== Finanzen */
+let finCats = [];
+const finDate = d => new Date(d + "T12:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+const INTERVAL_DE = { monat: "monatlich", quartal: "vierteljährlich", halbjahr: "halbjährlich", jahr: "jährlich", woche: "wöchentlich" };
+async function renderFinance() {
+  const f = await api.finance(); finCats = f.categories;
+  const catMax = Math.max(1, ...f.by_category.map(c => c.sum));
+  const cats = f.by_category.map(c => `<div style="margin-bottom:8px"><div class="kv"><span>${esc(c.category)}</span><span>${fmtEur(c.sum)} <small class="meta">${c.n}×</small></span></div>
+      <div class="bar"><i style="width:${(c.sum / catMax * 100).toFixed(1)}%" data-live-w="f-c-${esc(c.category)}"></i></div></div>`).join("");
+  const mMax = Math.max(1, ...f.months.map(m => Math.max(m.spent, m.earned)));
+  const months = `<div class="fin-months">${f.months.map(m => `<div title="${esc(m.month)}: ${fmtEur(m.spent)} ausgegeben, ${fmtEur(m.earned)} eingenommen">
+      <div class="fb"><i class="in" style="height:${Math.max(1, m.earned / mMax * 100)}%"></i><i style="height:${Math.max(1, m.spent / mMax * 100)}%"></i></div><span>${esc(m.month)}</span></div>`).join("")}</div>`;
+  const buds = f.budgets.map(b => `<div style="margin-bottom:10px"><div class="kv"><span>${esc(b.category)}</span><span>${fmtEur(b.used)} / ${fmtEur(b.monthly)}
+      <button class="small ghost" data-bud="${esc(b.category)}" title="Budget ändern">✎</button></span></div>
+      <div class="bar"><i style="width:${Math.min(100, b.pct)}%;${b.pct >= 100 ? "background:var(--danger)" : b.pct >= 80 ? "background:var(--warn)" : ""}"></i></div></div>`).join("");
+  const subs = f.subs.map(s => `<div class="row"><span class="k">${esc(s.name)}</span><span class="v">${fmtEur(s.amount)} ${INTERVAL_DE[s.interval] || ""}
+      <small class="meta">· nächste ${finDate(s.next_due)}</small></span><button class="small ghost danger" data-sub="${s.id}">Entfernen</button></div>`).join("");
+  const rows = f.recent.map(t => `<div class="row"><span class="meta" style="min-width:70px">${finDate(t.day)}</span>
+      <span class="v">${esc(t.note || "–")}</span>
+      <select class="fin-cat" data-tx="${t.id}" style="width:170px">${f.categories.map(c => `<option ${c === t.category ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
+      <b style="min-width:100px;text-align:right;color:${t.amount < 0 ? "var(--text)" : "var(--ok)"}">${t.amount > 0 ? "+" : ""}${fmtEur(t.amount).replace("-", "−")}</b>
+      <button class="small ghost danger" data-del-tx="${t.id}" title="Löschen">✕</button></div>`).join("");
+  const left = f.month_earned - f.month_spent;
+  $("#fin").innerHTML = `
+    <div class="card span2"><div class="card-head"><h3>${esc(f.month_name)}</h3><span class="meta">${f.count} Buchungen gespeichert</span></div>
+      <div class="cost-stats"><div><b data-live="f-spent">${fmtEur(f.month_spent)}</b><span>Ausgegeben</span></div>
+        <div><b data-live="f-earned">${fmtEur(f.month_earned)}</b><span>Eingenommen</span></div>
+        <div><b data-live="f-left" style="color:${left < 0 ? "var(--danger)" : "var(--ok)"}">${fmtEur(left)}</b><span>Übrig</span></div>
+        <div><b data-live="f-fc">${f.forecast != null ? fmtEur(f.forecast) : fmtEur(f.prev_spent)}</b><span>${f.forecast != null ? "Prognose Monat" : "Letzter Monat"}</span></div></div>
+      ${months}</div>
+    <div class="card"><div class="card-head"><h3>Wofür</h3><span class="meta">heute ${fmtEur(f.today_spent)}</span></div>${cats || '<p class="hint">Diesen Monat noch keine Ausgaben.</p>'}</div>
+    <div class="card"><div class="card-head"><h3>Budgets</h3></div>${buds || '<p class="hint">Noch keine Budgets. JARVIS warnt dich bei 80 % und 100 %.</p>'}</div>
+    <div class="card span2"><div class="card-head"><h3>Abos &amp; Verträge</h3><span class="meta">≈ ${fmtEur(f.subs_monthly)} im Monat</span></div>
+      <div class="list">${subs || '<p class="hint">Noch keine Abos. JARVIS trägt sie am Abbuchungstag automatisch ein und erinnert dich einen Tag vorher.</p>'}</div></div>
+    <div class="card span2"><div class="card-head"><h3>Letzte Buchungen</h3></div>
+      <div class="list">${rows || `<div class="empty">Noch keine Buchungen. Sag „Ich habe 12 Euro für Essen ausgegeben“ oder lade im Online-Banking deine Umsätze als CSV herunter und importiere sie.</div>`}</div></div>`;
+  $$("#fin [data-del-tx]").forEach(b => b.onclick = async () => { await api.finance_delete(+b.dataset.delTx); renderFinance(); });
+  $$("#fin .fin-cat").forEach(sel => sel.onchange = () => api.finance_update(+sel.dataset.tx, sel.value));
+  $$("#fin [data-sub]").forEach(b => b.onclick = () => confirmBox("Abo aus der Übersicht entfernen? (Beim Anbieter kündigen musst du selbst.)",
+    async () => { await api.finance_sub_remove(+b.dataset.sub); renderFinance(); }));
+  $$("#fin [data-bud]").forEach(b => b.onclick = () => finBudget(b.dataset.bud));
+  Live.after($("#fin"));
+}
+const catOptions = (sel, income) => (income ? ["Einnahmen"] : finCats.filter(c => c !== "Einnahmen")).map(c => `<option ${c === sel ? "selected" : ""}>${esc(c)}</option>`).join("");
+function finTx(kind) {
+  const income = kind === "einnahme";
+  modal(income ? "Neue Einnahme" : "Neue Ausgabe", `<label>Betrag in €<input id="f-a" inputmode="decimal" placeholder="12,50"></label>
+    <label>Wofür / wo<input id="f-n" placeholder="${income ? "z. B. Gehalt" : "z. B. Rewe, Tanken, Steam"}"></label>
+    ${income ? "" : `<label>Kategorie<select id="f-c"><option value="">automatisch erkennen</option>${catOptions("", false)}</select></label>`}
+    <label>Datum<input id="f-d" type="date" value="${new Date().toLocaleDateString("sv-SE")}"></label>`,
+    async b => { const a = $("#f-a", b).value.trim(); if (!a || isNaN(parseFloat(a.replace(",", ".")))) return false;
+      await api.finance_add(a, kind, income ? "Einnahmen" : ($("#f-c", b).value || null), $("#f-n", b).value.trim(), $("#f-d", b).value); renderFinance(); });
+}
+function finBudget(cat) {
+  modal("Monatsbudget", `<label>Kategorie<select id="f-c"><option ${cat === "Gesamt" ? "selected" : ""}>Gesamt</option>${catOptions(cat, false)}</select></label>
+    <label>Betrag pro Monat in € (0 = kein Budget)<input id="f-a" inputmode="decimal" placeholder="200"></label>`,
+    async b => { await api.finance_budget($("#f-c", b).value, $("#f-a", b).value.trim() || "0"); renderFinance(); });
+}
+$("#fin-add").onclick = () => finTx("ausgabe");
+$("#fin-income").onclick = () => finTx("einnahme");
+$("#fin-budget").onclick = () => finBudget("Gesamt");
+$("#fin-sub").onclick = () => modal("Neues Abo", `<label>Name<input id="f-n" placeholder="z. B. Netflix"></label>
+    <label>Betrag in €<input id="f-a" inputmode="decimal" placeholder="13,99"></label>
+    <label>Abrechnung<select id="f-i">${Object.entries(INTERVAL_DE).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+    <label>Nächste Abbuchung<input id="f-d" type="date"></label>`,
+  async b => { const n = $("#f-n", b).value.trim(), a = $("#f-a", b).value.trim(); if (!n || !a) return false;
+    await api.finance_sub_add(n, a, $("#f-i", b).value, $("#f-d", b).value || null); renderFinance(); });
+$("#fin-import").onclick = async () => { const r = await api.finance_import(); toast(r.msg, "Kontoauszug", !r.ok); renderFinance(); };
+
 /* ===================================================== Gedächtnis */
 async function renderMemory() {
   const rows = await api.memory_list(); const q = ($("#mem-search").value || "").toLowerCase();
@@ -536,19 +606,23 @@ async function renderPhone() {
       ${d.adb ? '<p><span class="dot ok"></span>ADB ist eingerichtet.</p>' : `<p class="hint">Für Android-Steuerung werden die offiziellen Android-Platform-Tools von Google benötigt (ca. 15 MB).</p><button id="ph-adb">ADB einrichten</button>`}
       <div class="field col" style="margin-top:12px"><div class="lbl">WLAN-Debugging verbinden<small>Am Handy: Entwickleroptionen → Kabelloses Debugging → IP-Adresse &amp; Port</small></div>
         <div class="ctl"><input id="ph-ip" placeholder="192.168.0.23:5555"><button id="ph-con">Verbinden</button></div></div></div>
-    <div class="card span2"><div class="card-head"><h3>JARVIS-Handy-App (wie Alexa – im Heimnetz)</h3>${sw("remote", d.remote.enabled)}</div>
+    <div class="card span2"><div class="card-head"><h3>JARVIS-Handy-App (zu Hause und unterwegs)</h3>${sw("remote", d.remote.enabled)}</div>
       <div style="display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap">
         ${d.remote.qr ? `<img src="${d.remote.qr}" alt="QR-Code" style="width:190px;height:190px;border-radius:10px;background:#fff;padding:6px">` : ""}
         <div style="flex:1;min-width:260px">
-          ${d.remote.running ? `<p><span class="dot ok"></span>Aktiv – ${d.remote.clients} Handy(s) verbunden</p>
+          ${d.remote.running ? `<p><span class="dot ok"></span>Aktiv – ${d.remote.clients} Handy(s) verbunden${d.remote.tailscale ? " · auch unterwegs erreichbar (Tailscale)" : ""}</p>
             <ol class="hint" style="padding-left:18px;margin:8px 0">
-              <li>Handy im selben WLAN, QR-Code mit der Kamera scannen.</li>
-              <li>Die Zertifikatswarnung einmalig bestätigen („Erweitert → Weiter“) – das Zertifikat hat JARVIS selbst erstellt.</li>
-              <li>Im Browser-Menü „Zum Startbildschirm hinzufügen“ – fertig ist die JARVIS-App.</li>
-              <li>Fragt Windows beim Aktivieren nach der Firewall, „Private Netzwerke“ erlauben.</li></ol>
-            <div class="kv"><span>Adresse</span><span style="user-select:text;font-family:var(--mono)">${esc(d.remote.url)}</span></div>`
-          : `<p class="hint">Aktiviere die Handy-App, um JARVIS vom Handy aus per Sprache oder Text zu steuern, Geräte zu schalten und Routinen zu starten.
-             Zugriff nur mit geheimem Token (per QR-Code), verschlüsselt über HTTPS.</p>`}
+              ${d.remote.tailscale ? `<li>Am Handy die Tailscale-App öffnen und einschalten (dann klappt es auch unterwegs über mobile Daten).</li>
+              <li>QR-Code mit der Kamera scannen – die Seite öffnet sich in Safari.</li>`
+              : `<li>Handy im selben WLAN, QR-Code mit der Kamera scannen.</li>
+              <li>Die Zertifikatswarnung einmalig bestätigen („Erweitert → Weiter“) – das Zertifikat hat JARVIS selbst erstellt.</li>`}
+              <li>In Safari: Teilen → „Zum Home-Bildschirm“ – fertig ist die JARVIS-App.</li>
+              <li>Die App öffnen und „Push-Nachrichten aktivieren“ tippen.</li>
+              <li>Fragt Windows nach der Firewall, den Zugriff erlauben.</li></ol>
+            <div class="kv"><span>Adresse</span><span style="user-select:text;font-family:var(--mono)">${esc(d.remote.url)}</span>
+              <span>Push-Nachrichten</span><span>${d.remote.push_devices ? d.remote.push_devices + " Handy(s) · " + (d.remote.push_mode === "always" ? "immer" : "wenn du nicht am PC bist") : "noch nicht aktiviert"}</span></div>`
+          : `<p class="hint">Aktiviere die Handy-App, um JARVIS vom Handy aus zu steuern – alles, was JARVIS am PC kann: Sprache, Modi, PC-Knöpfe, Lautstärke,
+             Bildschirm ansehen, Routinen, Geräte, Finanzen und Push-Nachrichten. Zugriff nur mit geheimem Token (per QR-Code), verschlüsselt über HTTPS.</p>`}
           <div class="field"><div class="lbl">Handy-Antworten auch am PC vorlesen</div><div class="ctl">${sw("remote.speak_on_pc", d.remote.speak_on_pc)}</div></div>
           <button class="ghost danger small" id="ph-newtok">Neuen Token erzeugen (alle Handys abmelden)</button>
         </div></div></div></div>`;

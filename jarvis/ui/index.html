@@ -43,6 +43,7 @@
   <nav id="dock">
     <button data-page="home" class="active" title="Zentrale"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span>Zentrale</span></button>
     <button data-page="dashboard" title="Dashboard"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></button>
+    <button data-page="finance" title="Finanzen"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/><path d="M6 6l9-3 1.5 3"/></svg><span>Finanzen</span></button>
     <button data-page="memory" title="Gedächtnis"><svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h1V4H9zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h-1V4h1z"/></svg><span>Gedächtnis</span></button>
     <button data-page="automations" title="Profile & Routinen"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="17" cy="6" r="2"/><circle cx="14" cy="18" r="2"/></svg><span>Profile &amp; Routinen</span></button>
     <button data-page="home-auto" title="Zimmer & Geräte"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Zimmer &amp; Geräte</span></button>
@@ -123,6 +124,20 @@
     <section class="page" id="page-dashboard">
       <h1>Dashboard</h1>
       <div class="dash-grid" id="dash"></div>
+    </section>
+
+    <!-- ============ Finanzen ============ -->
+    <section class="page" id="page-finance">
+      <h1>Finanzen <small>nur lokal auf diesem PC – keine Bankanmeldung</small></h1>
+      <div class="toolbar">
+        <button id="fin-add">+ Ausgabe</button>
+        <button class="ghost" id="fin-income">+ Einnahme</button>
+        <button class="ghost" id="fin-sub">+ Abo</button>
+        <button class="ghost" id="fin-budget">Budget setzen</button>
+        <button class="ghost" id="fin-import">Kontoauszug (CSV) importieren …</button>
+      </div>
+      <p class="hint">Per Sprache: „Ich habe 12,50 Euro für Essen ausgegeben“ · „Wie viel habe ich diesen Monat ausgegeben?“ · „Budget für Essen 200 Euro“ · „Neues Abo Netflix 13,99 im Monat“</p>
+      <div class="dash-grid" id="fin"></div>
     </section>
 
     <!-- ============ Gedächtnis ============ -->
