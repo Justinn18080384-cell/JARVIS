@@ -90,6 +90,7 @@
 
         <!-- Mitte: Zustand, letzte Antwort, Eingabe -->
         <div class="cc-center" style="grid-area: c">
+          <div class="task-panel hidden" id="task-panel"></div>
           <div class="core-state" id="core-state">ONLINE</div>
           <div class="subtitle" id="subtitle"></div>
           <div class="core-hint" id="core-hint">Sag „Hey Jarvis“, klatsche zweimal oder klicke auf das Mikrofon</div>
@@ -189,6 +190,7 @@
         </div>
         <div class="card">
           <div class="card-head"><h3>Backups</h3><button id="backup-now">Backup erstellen</button></div>
+          <div class="toolbar"><button class="ghost small" id="data-export">Alles exportieren</button><button class="ghost small" id="data-import">Sicherung importieren …</button></div>
           <p class="hint">Gedächtnis, Profile, Routinen, Geräte und Einstellungen. Täglich automatisch und vor jedem Update.</p>
           <div id="backup-list" class="list"></div>
         </div>

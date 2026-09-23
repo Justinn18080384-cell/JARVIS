@@ -287,7 +287,50 @@ class API:
     def backup_restore(self, name):
         from .modules import maintenance
         maintenance.restore_backup(name)
+        threading.Timer(1.5, self._j.restart).start()     # sauber neu laden
         return True
+
+    @safe
+    def data_export(self):
+        """Gedächtnis, Routinen, Geräte und Einstellungen als eine Datei in „Dokumente“ ablegen."""
+        import shutil
+        import subprocess
+        from pathlib import Path
+        from .modules import maintenance
+        p = maintenance.create_backup("export")
+        docs = Path.home() / "Documents"
+        docs.mkdir(exist_ok=True)
+        dest = docs / time.strftime("JARVIS-Export_%Y-%m-%d_%H-%M.zip")
+        shutil.copy2(p, dest)
+        subprocess.Popen(["explorer", "/select,", str(dest)])
+        log.activity("wartung", f"Daten exportiert: {dest.name}")
+        return str(dest)
+
+    @safe
+    def data_import(self):
+        """JARVIS-Sicherung auswählen, einspielen und neu starten."""
+        import shutil
+        import zipfile
+        from pathlib import Path
+        import webview
+        from .modules import maintenance
+        res = self._j.window.create_file_dialog(webview.FileDialog.OPEN, file_types=("JARVIS-Sicherung (*.zip)",))
+        if not res:
+            return {"ok": False, "msg": "Abgebrochen."}
+        src = Path(res[0] if isinstance(res, (list, tuple)) else res)
+        try:
+            with zipfile.ZipFile(src) as z:
+                if "jarvis.db" not in z.namelist():
+                    return {"ok": False, "msg": "Das ist keine JARVIS-Sicherung."}
+        except zipfile.BadZipFile:
+            return {"ok": False, "msg": "Die Datei ist beschädigt oder keine ZIP-Datei."}
+        paths.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        name = time.strftime("JARVIS-Backup_%Y-%m-%d_%H-%M-%S_import.zip")
+        shutil.copy2(src, paths.BACKUP_DIR / name)
+        maintenance.restore_backup(name)
+        log.activity("wartung", f"Daten importiert aus {src.name}")
+        threading.Timer(1.5, self._j.restart).start()
+        return {"ok": True, "msg": "Importiert – JARVIS startet gleich neu."}
 
     # ------------------------------------------------------- Einstellungen
     @safe

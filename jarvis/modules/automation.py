@@ -304,15 +304,23 @@ class AutomationModule(Module):
         self._running += 1
         texts, failed = [], 0
         log.activity(M, f"{TYPE_NAMES[a['type']]} „{a['name']}“ gestartet")
+        # Live-Fortschritt für die Oberfläche
+        tid = uuid.uuid4().hex[:8]
+        labels = [f"{int(s['wait'])} s warten" if "wait" in s else s["text"] for s in a["steps"]]
+        bus.emit("task", id=tid, name=a["name"], steps=labels, status="start")
+        ok_end = False
         try:
-            for s in a["steps"]:
+            for i, s in enumerate(a["steps"]):
+                bus.emit("task", id=tid, i=i, status="running")
                 wait = float(s.get("wait") or s.get("delay") or 0)
                 if wait and ctx.cancel.wait(wait):
                     return {"ok": False, "text": "Abgebrochen."}
                 if ctx.cancel.is_set() or brain.halted:
                     return {"ok": False, "text": "Abgebrochen."}
                 if "wait" in s:
+                    bus.emit("task", id=tid, i=i, status="ok")
                     continue
+                before = failed
                 calls = s.get("calls") or self.compile_text(s["text"])
                 if calls:
                     for name, args in calls:
@@ -335,8 +343,11 @@ class AutomationModule(Module):
                     else:
                         failed += 1
                         texts.append(f"Nicht verstanden: {s['text']}")
+                bus.emit("task", id=tid, i=i, status="fail" if failed > before else "ok")
+            ok_end = True
         finally:
             self._running -= 1
+            bus.emit("task", id=tid, status="done", ok=ok_end and failed == 0)
         msg = f"{a['name']} ausgeführt." + (f" Probleme: {' '.join(texts)}" if failed else "")
         log.activity(M, msg, ok=failed == 0)
         if announce_end:

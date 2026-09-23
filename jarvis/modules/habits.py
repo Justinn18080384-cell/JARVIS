@@ -32,9 +32,9 @@ IGNORE = {"explorer", "searchhost", "shellexperiencehost", "startmenuexperienceh
           "claude", "rundll32", "dllhost", "conhost", "cmd", "powershell", "pwsh", "windowsterminal", "openconsole",
           "onedrive", "lghub", "lghub_agent", "lghub_updater", "ollama", "ollama app", "winget", "git", "gh", "code"}
 
-db.execute("""CREATE TABLE IF NOT EXISTS usage(
+db.schema("""CREATE TABLE IF NOT EXISTS usage(
     day TEXT, app TEXT, seconds REAL, game INTEGER DEFAULT 0, PRIMARY KEY(day, app))""")
-db.execute("""CREATE TABLE IF NOT EXISTS launches(
+db.schema("""CREATE TABLE IF NOT EXISTS launches(
     id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, app TEXT, weekday INTEGER, minute INTEGER)""")
 
 

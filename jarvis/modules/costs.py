@@ -37,7 +37,7 @@ OPENAI_TTS_USD_PER_MIN = 0.015  # gpt-4o-mini-tts
 
 SERVICE_NAMES = {"openai": "OpenAI", "elevenlabs": "ElevenLabs"}
 
-db.execute("""CREATE TABLE IF NOT EXISTS costs(
+db.schema("""CREATE TABLE IF NOT EXISTS costs(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts REAL, service TEXT, kind TEXT, model TEXT,
     units REAL, unit TEXT, usd REAL

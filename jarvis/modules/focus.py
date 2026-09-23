@@ -48,7 +48,7 @@ VIDEO_APPS = {"vlc", "mpc-hc", "mpc-hc64", "mpc-be64", "potplayermini64", "potpl
 BROWSERS = {"chrome", "msedge", "firefox", "opera", "opera_gx", "brave", "vivaldi"}
 NEVER = {"explorer", "searchhost", "shellexperiencehost", "startmenuexperiencehost", "lockapp", "textinputhost"}
 
-db.execute("""CREATE TABLE IF NOT EXISTS missed(
+db.schema("""CREATE TABLE IF NOT EXISTS missed(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts REAL, mode TEXT, priority INTEGER, title TEXT, text TEXT, seen INTEGER DEFAULT 0
 )""")

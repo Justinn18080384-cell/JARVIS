@@ -9,6 +9,7 @@
       input_device: null, output_device: null, chime: true },
     security: { confirm_level: 2, privacy_mode: false, screen_ai: true },
     habits: { tracking: true, suggestions: true },
+    pchelp: { clipboard_history: true, download_watch: true, crash_assistant: true },
     focus: { mode: "gaming", auto: true, sleep: { enabled: false, from: "23:00", to: "07:00" } },
     app: { start_with_windows: false, start_minimized: false, close_to_tray: true, boot_animation: true, notifications: true, active_mode: true, auto_backup: true },
     update: { url: "", auto_check: true }, remote: { enabled: false, port: 8765, token: "" }, smarthome: { homeassistant_url: "" },

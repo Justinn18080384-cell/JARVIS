@@ -90,6 +90,7 @@ window.JARVIS = {
       case "update_progress": toast(`${d.stage} ${d.percent ? d.percent + " %" : ""}`, "Update"); break;
       case "screenshot": toast("Screenshot gespeichert (Bilder/JARVIS).", "Screenshot"); break;
       case "wake": $("#btn-mic").classList.add("on"); break;
+      case "task": onTask(d); break;
     }
   },
 };
@@ -282,6 +283,27 @@ async function refreshHome() {
   const v = d.voice || {};
   $("#core-hint").textContent = v.error ? "Mikrofon-Problem: " + v.error
     : [v.wake && "Sag „Hey Jarvis“", v.clap && "klatsche zweimal", "oder klicke auf das Mikrofon"].filter(Boolean).join(", ");
+}
+
+/* Live-Fortschritt von Routinen/Befehlen mit mehreren Schritten */
+const tasks = {};
+let taskHide = null;
+function onTask(d) {
+  const p = $("#task-panel");
+  if (d.status === "start") {
+    tasks[d.id] = { name: d.name, steps: d.steps.map(s => ({ text: s, st: "wait" })) };
+  } else if (tasks[d.id] && d.i != null) {
+    tasks[d.id].steps[d.i].st = d.status;
+  } else if (tasks[d.id] && d.status === "done") {
+    tasks[d.id].done = true; tasks[d.id].ok = d.ok;
+    clearTimeout(taskHide);
+    taskHide = setTimeout(() => { for (const k in tasks) if (tasks[k].done) delete tasks[k]; onTask({}); }, 6000);
+  }
+  const list = Object.values(tasks);
+  p.classList.toggle("hidden", !list.length);
+  const icon = { wait: "○", running: "◌", ok: "✓", fail: "✗" };
+  p.innerHTML = list.map(t => `<div class="task"><div class="task-head">${esc(t.name)}<span>${t.done ? (t.ok ? "fertig" : "mit Problemen") : `${t.steps.filter(s => s.st === "ok" || s.st === "fail").length}/${t.steps.length}`}</span></div>
+    ${t.steps.map(s => `<div class="task-step ${s.st}"><i>${icon[s.st]}</i>${esc(s.text)}</div>`).join("")}</div>`).join("");
 }
 
 /* Untertitel unter der Kugel: was du gesagt hast / Jarvis' letzte Antwort */
@@ -564,11 +586,15 @@ async function renderBackups() {
     <span class="meta">${fmtBytes(x.size)}</span><button class="small ghost" data-restore="${esc(x.file)}">Wiederherstellen</button></div>`).join("")
     : '<div class="empty">Noch keine Backups.</div>';
   $$("[data-restore]").forEach(el => el.onclick = () => confirmBox("Dieses Backup wiederherstellen? Der aktuelle Stand wird vorher gesichert.",
-    async () => { await api.backup_restore(el.dataset.restore); toast("Backup wiederhergestellt."); renderBackups(); }));
+    async () => { await api.backup_restore(el.dataset.restore); toast("Backup wiederhergestellt – JARVIS startet gleich neu."); }));
 }
 $("#backup-now").onclick = async () => { toast("Backup erstellt: " + await api.backup_create()); renderBackups(); };
+$("#data-export").onclick = async () => toast("Gespeichert unter " + await api.data_export() + " – damit kannst du JARVIS auf einem anderen PC einrichten.", "Export");
+$("#data-import").onclick = () => confirmBox("Eine JARVIS-Sicherung einspielen? Der jetzige Stand wird vorher automatisch gesichert.",
+  async () => { const r = await api.data_import(); toast(r.msg, "Import", !r.ok); });
 
 /* ===================================================== Einstellungen */
+const isLocal = p => p === "ollama" || p === "auto";
 async function renderSettings() {
   S = await api.state();
   const c = S.config, v = c.voice;
@@ -582,8 +608,8 @@ async function renderSettings() {
   $("#settings").innerHTML = `
   <div class="card"><div class="card-head"><h3>KI</h3></div>
     <div class="field"><div class="lbl">Anbieter<small>OpenAI = stark &amp; mit Websuche · Ollama = lokal, offline, kostenlos</small></div>
-      <div class="ctl"><select data-key="ai.provider" data-rerender>${opt([["openai", "OpenAI"], ["ollama", "Ollama (lokal)"]], c.ai.provider)}</select></div></div>
-    ${c.ai.provider === "ollama" ? `
+      <div class="ctl"><select data-key="ai.provider" data-rerender>${opt([["auto", "Automatisch (Ollama, bei Bedarf OpenAI)"], ["ollama", "Ollama (lokal)"], ["openai", "OpenAI"]], c.ai.provider)}</select></div></div>
+    ${isLocal(c.ai.provider) ? `
     <div class="field col"><div class="lbl">Ollama-Adresse<small>Ollama von ollama.com installieren, dann z. B. „ollama pull qwen3“</small></div>
       <div class="ctl"><input data-key="ai.ollama_url" value="${esc(c.ai.ollama_url)}" data-blur></div></div>
     <div class="field"><div class="lbl">Gründlich nachdenken<small>Bessere Antworten bei kniffligen Fragen, aber ca. 7 s statt 1–3 s</small></div><div class="ctl">${sw("ai.ollama_think", c.ai.ollama_think)}</div></div>
@@ -594,7 +620,7 @@ async function renderSettings() {
       <div class="ctl"><input type="password" id="s-key" placeholder="${S.has_key ? "•••••••• (neu eingeben zum Ändern)" : "sk-…"}"><button id="s-key-save">Speichern</button>${S.has_key ? '<button class="ghost danger" id="s-key-del">Entfernen</button>' : ""}</div>
       <div id="s-key-msg" class="status-msg"></div></div>
     <div class="field"><div class="lbl">KI verwenden<small>Nur wenn lokale Befehle nicht reichen</small></div><div class="ctl">${sw("ai.enabled", c.ai.enabled)}</div></div>
-    <div class="field"><div class="lbl">Modell${c.ai.provider === "ollama" ? " (Ollama)" : ""}</div><div class="ctl"><select data-key="${c.ai.provider === "ollama" ? "ai.ollama_model" : "ai.model"}" id="s-model"><option>${esc(c.ai.provider === "ollama" ? (c.ai.ollama_model || "– wählen –") : c.ai.model)}</option></select><button class="ghost small" id="s-models" title="Modelle laden">↻</button></div></div>
+    <div class="field"><div class="lbl">Modell${isLocal(c.ai.provider) ? " (Ollama)" : ""}</div><div class="ctl"><select data-key="${isLocal(c.ai.provider) ? "ai.ollama_model" : "ai.model"}" id="s-model"><option>${esc(isLocal(c.ai.provider) ? (c.ai.ollama_model || "– wählen –") : c.ai.model)}</option></select><button class="ghost small" id="s-models" title="Modelle laden">↻</button></div></div>
     <div class="field"><div class="lbl">Websuche<small>KI darf bei Bedarf im Internet suchen</small></div><div class="ctl">${sw("ai.web_search", c.ai.web_search)}</div></div>
     <div class="field"><div class="lbl">Bildschirm verstehen<small>Screenshot-Analyse auf Kommando</small></div><div class="ctl">${sw("security.screen_ai", c.security.screen_ai)}</div></div>
     <div class="field"><div class="lbl">Verbindung testen</div><div class="ctl"><button class="ghost" id="s-ai-test">Testen</button></div></div>
@@ -645,6 +671,13 @@ async function renderSettings() {
     <div class="field"><div class="lbl">Vorschläge machen<small>„Du startest um diese Zeit meistens …“ – mit „Nicht jetzt“ eine Stunde Ruhe</small></div><div class="ctl">${sw("habits.suggestions", c.habits.suggestions)}</div></div>
     <div class="field"><div class="lbl">Erfasste Daten</div><div class="ctl"><button class="ghost danger small" id="s-habits-clear">Verlauf löschen</button></div></div>
     <p class="hint">Vormachen: „Jarvis, schau mir zu“ → Programme starten → „Speichere das als Gaming-Setup“. Fragen: „Wie war mein Tag?“, „Wie lange habe ich diese Woche gespielt?“</p>
+  </div>
+
+  <div class="card"><div class="card-head"><h3>PC-Helfer</h3></div>
+    <div class="field"><div class="lbl">Fertige Downloads melden</div><div class="ctl">${sw("pchelp.download_watch", c.pchelp.download_watch)}</div></div>
+    <div class="field"><div class="lbl">Absturz-Assistent<small>Meldet abgestürzte Programme und bietet Neustart an</small></div><div class="ctl">${sw("pchelp.crash_assistant", c.pchelp.crash_assistant)}</div></div>
+    <div class="field"><div class="lbl">Zwischenablage-Verlauf<small>Nur im Arbeitsspeicher, wird nie gespeichert</small></div><div class="ctl">${sw("pchelp.clipboard_history", c.pchelp.clipboard_history)}</div></div>
+    <p class="hint">„Ist mein Internet langsam?“ · „Wie viel Platz kann ich freimachen?“ · „Was habe ich vorhin kopiert?“ · „Speichere mein Fensterlayout als Arbeit“</p>
   </div>
 
   <div class="card"><div class="card-head"><h3>Sicherheit &amp; Datenschutz</h3></div>
@@ -717,13 +750,13 @@ async function renderSettings() {
   $("#s-wizard").onclick = wizard;
   $("#s-upd-check").onclick = async () => toast(await api.update_check(), "Update");
   $("#s-upd-inst").onclick = () => confirmBox("Update jetzt installieren? JARVIS startet danach neu.", async () => toast(await api.update_install(), "Update"));
-  if (S.has_key || S.config.ai.provider === "ollama") loadModels();
+  if (S.has_key || isLocal(S.config.ai.provider)) loadModels();
 }
 async function loadModels() {
   try {
     const list = await api.models(); if (!list.length) return;
-    const cur = S.config.ai.provider === "ollama" ? S.config.ai.ollama_model : S.config.ai.model;
-    if (S.config.ai.provider === "ollama" && !cur) list.unshift("– wählen –");
+    const cur = isLocal(S.config.ai.provider) ? S.config.ai.ollama_model : S.config.ai.model;
+    if (isLocal(S.config.ai.provider) && !cur) list.unshift("– wählen –");
     $("#s-model").innerHTML = list.map(m => `<option ${m === cur ? "selected" : ""}>${esc(m)}</option>`).join("");
   } catch {}
 }

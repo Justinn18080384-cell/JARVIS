@@ -31,6 +31,11 @@ Du kannst den PC über Werkzeuge steuern. Nutze sie, wenn der Nutzer etwas getan
 wirklich mehrdeutig ist. Wenn der Nutzer dir etwas Persönliches über sich erzählt, speichere es mit memory_remember. \
 Wenn er möchte, dass du auf einen Satz hin etwas tust ("wenn ich X sage, mach Y"), lege mit automation_create einen Befehl an. \
 Erfinde keine Fakten über den Nutzer – nutze das Gedächtnis."""
+# Fragen, für die im Automatik-Modus OpenAI (mit Websuche) statt Ollama gefragt wird
+NEEDS_WEB = re.compile(
+    r"\b(aktuell\w*|neueste\w*|neuigkeit\w*|news|nachrichten|schlagzeilen|heute im|gestern|preis\w*|kostet|kurs|aktie\w*|"
+    r"bitcoin|börse|ergebnis\w*|spielstand|tabelle|wer hat gewonnen|google|such\w* im internet|im internet|online nach|"
+    r"recherchier\w*|release|erscheint|wann kommt|patch ?notes|update für|trailer|wahl\w*|bundesliga|champions league)\b")
 # Lokale Modelle bekommen nur die wichtigsten Werkzeuge: Alle 80+ würden ~6.500 Tokens kosten – mehr als
 # Ollamas Standard-Kontext (4.096) – und das Modell langsam und unsicher machen.
 OLLAMA_TOOLS = {
@@ -70,13 +75,23 @@ class AIModule(Module):
         """Der in den Einstellungen gewählte Anbieter."""
         return config.get("ai.provider", "openai")
 
-    def active_provider(self):
-        """Der gerade tatsächlich genutzte Anbieter: Beim Zocken weicht Ollama auf Wunsch auf OpenAI aus,
-        damit das Spiel den Grafikspeicher für sich hat."""
+    def active_provider(self, text=None):
+        """Der gerade tatsächlich genutzte Anbieter.
+        ollama: beim Zocken auf Wunsch OpenAI, damit das Spiel den Grafikspeicher für sich hat.
+        auto:   Ollama (kostenlos) für alles, was ohne Internet geht – OpenAI nur für Aktuelles aus dem Netz,
+                beim Zocken (auf Wunsch) oder wenn Ollama nicht läuft."""
         p = self.provider()
-        if (p == "ollama" and _gaming() and config.get("ai.gaming_fallback", "openai") == "openai"
-                and secrets.has("openai_api_key") and not config.get("security.privacy_mode")):
-            return "openai"
+        online = secrets.has("openai_api_key") and not config.get("security.privacy_mode")
+        gaming_to_openai = _gaming() and config.get("ai.gaming_fallback", "openai") == "openai"
+        if p == "ollama":
+            return "openai" if gaming_to_openai and online else "ollama"
+        if p == "auto":
+            local = bool(config.get("ai.ollama_model")) and self.ollama_running()
+            if not local:
+                return "openai" if online else "ollama"
+            if online and (gaming_to_openai or (text and NEEDS_WEB.search(text.lower()))):
+                return "openai"
+            return "ollama"
         return p
 
     def start(self):
@@ -84,7 +99,7 @@ class AIModule(Module):
         bus.on("wake", lambda *_: threading.Thread(target=self.preload_ollama, daemon=True).start())
 
     def _on_focus(self, event, data):
-        if data.get("mode") == "gaming" and self.provider() == "ollama" and config.get("ai.unload_on_gaming", True):
+        if data.get("mode") == "gaming" and self.provider() in ("ollama", "auto") and config.get("ai.unload_on_gaming", True):
             threading.Thread(target=self.unload_ollama, daemon=True).start()
 
     def unload_ollama(self):
@@ -133,15 +148,15 @@ class AIModule(Module):
         base = (config.get("ai.ollama_url") or "http://localhost:11434").rstrip("/")
         return [m["name"] for m in requests.get(base + "/api/tags", timeout=4).json().get("models", [])]
 
-    def available(self):
+    def available(self, text=None):
         if not config.get("ai.enabled", True):
             return False
-        if self.active_provider() == "ollama":
+        if self.active_provider(text) == "ollama":
             return bool(config.get("ai.ollama_model")) and self.ollama_running()
         return not config.get("security.privacy_mode") and secrets.has("openai_api_key")
 
     def list_models(self):
-        if self.provider() == "ollama":
+        if self.provider() in ("ollama", "auto"):
             return self.ollama_models()
         c = self.client()
         if not c:
@@ -152,7 +167,7 @@ class AIModule(Module):
         return sorted(chat)
 
     def test(self):
-        if self.provider() == "ollama":
+        if self.provider() in ("ollama", "auto"):
             if not self.ollama_running():
                 return False, "Ollama läuft nicht (ollama.com installieren und starten)."
             models = self.ollama_models()
@@ -210,12 +225,15 @@ class AIModule(Module):
         return parts
 
     def chat(self, text, ctx, silent=False):
-        if not self.available():
-            if self.active_provider() == "ollama":
+        prov = self.active_provider(text)
+        if not self.available(text):
+            if prov == "ollama":
                 return "Ollama ist nicht erreichbar oder es ist kein Modell gewählt. Bitte in den Einstellungen prüfen."
             return "Für diese Frage brauche ich die KI – bitte hinterlege einen OpenAI-Schlüssel in den Einstellungen."
+        if self.provider() == "auto":
+            log.logger().info("KI-Automatik: %s", prov)
         try:
-            if self.active_provider() == "ollama":
+            if prov == "ollama":
                 answer = self._chat_completions(text, ctx)
             else:
                 answer = self._chat_openai(text, ctx)
@@ -348,7 +366,10 @@ class AIModule(Module):
         """Einzelne Anfrage ohne Werkzeuge (für Briefing, Recherche …)."""
         system = system or PERSONA
         self.requests += 1
-        if self.active_provider() == "ollama":
+        prov = self.active_provider(prompt)
+        if web and self.provider() == "auto" and secrets.has("openai_api_key") and not config.get("security.privacy_mode"):
+            prov = "openai"                     # Nachrichten/Recherche brauchen das Internet
+        if prov == "ollama":
             resp = self._ollama_create(self.ollama_client(), model=config.get("ai.ollama_model"),
                                        messages=[{"role": "system", "content": system + "\n\n" + GERMAN_ONLY}, {"role": "user", "content": prompt}])
             return _strip_think(resp.choices[0].message.content or "")
@@ -389,7 +410,7 @@ class AIModule(Module):
         prov = self.provider()
         return {"available": self.available(), "has_key": secrets.has("openai_api_key"), "provider": prov,
                 "active": self.active_provider(),
-                "model": config.get("ai.ollama_model") if prov == "ollama" else config.get("ai.model"),
+                "model": config.get("ai.ollama_model") if prov in ("ollama", "auto") else config.get("ai.model"),
                 "requests": self.requests, "web_search": config.get("ai.web_search"), "last_error": self.last_error}
 
     def diagnose(self):

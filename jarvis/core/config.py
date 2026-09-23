@@ -54,6 +54,12 @@ DEFAULTS = {
         "tracking": True,               # Bildschirmzeit und Programmstarts erfassen
         "suggestions": True,            # „Du startest um diese Zeit meistens …“ vorschlagen
     },
+    # PC-Helfer
+    "pchelp": {
+        "clipboard_history": True,      # Verlauf nur im Arbeitsspeicher, nie auf der Festplatte
+        "download_watch": True,         # melden, wenn ein Download fertig ist
+        "crash_assistant": True,        # Abstürze melden und Neustart anbieten
+    },
     # Modi / Nicht stören
     "focus": {
         "mode": "normal",               # normal | gaming | film | schlafen | arbeit

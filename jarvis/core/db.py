@@ -49,6 +49,15 @@ class DB:
     def __init__(self):
         self._lock = threading.RLock()
         self._conn = None
+        self._extra = []          # Tabellen weiterer Module (auch nach Wiederherstellung einer alten Sicherung anlegen)
+
+    def schema(self, sql):
+        """Tabelle eines Moduls registrieren und sofort anlegen (falls nötig)."""
+        with self._lock:
+            if sql not in self._extra:
+                self._extra.append(sql)
+            self.conn().execute(sql)
+            self.conn().commit()
 
     def conn(self):
         if self._conn is None:
@@ -57,6 +66,8 @@ class DB:
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(SCHEMA)
+            for sql in self._extra:
+                self._conn.execute(sql)
             self._conn.commit()
         return self._conn
 

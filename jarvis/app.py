@@ -122,10 +122,11 @@ class Jarvis:
         from .modules.costs import CostsModule
         from .modules.focus import FocusModule
         from .modules.habits import HabitsModule
+        from .modules.pchelp import PCHelpModule
 
         # Reihenfolge = Priorität beim Sprachverständnis
         for cls in (AutomationModule, CoreModule, FocusModule, HabitsModule, MemoryModule, VoiceModule, MaintenanceModule, UpdaterModule,
-                    BriefingModule, CostsModule, PCModule, SmartHomeModule, PhoneModule, AIModule, WatcherModule, RemoteModule):
+                    BriefingModule, CostsModule, PCHelpModule, PCModule, SmartHomeModule, PhoneModule, AIModule, WatcherModule, RemoteModule):
             try:
                 m = cls(self)
                 self.modules[m.name] = m
@@ -240,6 +241,19 @@ class Jarvis:
         if self.window:
             self.window.hide()
             self.window_hidden = True
+
+    def restart(self):
+        """JARVIS neu starten (z. B. nach dem Einspielen einer Sicherung)."""
+        import subprocess
+        if getattr(sys, "frozen", False):
+            cmd = f'"{sys.executable}"'
+        else:
+            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+            cmd = f'"{pyw}" "{paths.app_dir().parent / "run.py"}"'
+        # kurz warten, bis diese Instanz beendet ist (nur eine JARVIS-Instanz erlaubt)
+        subprocess.Popen(f'cmd /c timeout /t 2 /nobreak >nul & start "" {cmd}', shell=True, creationflags=0x08000000)
+        log.activity("system", "JARVIS wird neu gestartet")
+        self.quit()
 
     def quit(self):
         log.activity("system", "JARVIS beendet")
