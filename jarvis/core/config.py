@@ -49,6 +49,11 @@ DEFAULTS = {
         "output_device": None,
         "chime": True,
     },
+    # Gewohnheiten (alles lokal)
+    "habits": {
+        "tracking": True,               # Bildschirmzeit und Programmstarts erfassen
+        "suggestions": True,            # „Du startest um diese Zeit meistens …“ vorschlagen
+    },
     # Modi / Nicht stören
     "focus": {
         "mode": "normal",               # normal | gaming | film | schlafen | arbeit

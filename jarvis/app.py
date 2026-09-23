@@ -121,9 +121,10 @@ class Jarvis:
         from .modules.briefing import BriefingModule
         from .modules.costs import CostsModule
         from .modules.focus import FocusModule
+        from .modules.habits import HabitsModule
 
         # Reihenfolge = Priorität beim Sprachverständnis
-        for cls in (AutomationModule, CoreModule, FocusModule, MemoryModule, VoiceModule, MaintenanceModule, UpdaterModule,
+        for cls in (AutomationModule, CoreModule, FocusModule, HabitsModule, MemoryModule, VoiceModule, MaintenanceModule, UpdaterModule,
                     BriefingModule, CostsModule, PCModule, SmartHomeModule, PhoneModule, AIModule, WatcherModule, RemoteModule):
             try:
                 m = cls(self)

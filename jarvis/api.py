@@ -99,9 +99,10 @@ class API:
     @safe
     def dashboard(self):
         from .modules.pc import system
-        from .modules import memory, automation, smarthome, costs, focus
+        from .modules import memory, automation, smarthome, costs, focus, habits
         s = system.stats()
         return {
+            "habits": habits._mod.dashboard() if habits._mod else None,
             "costs": costs.summary(),
             "missed": focus.missed_list(10),
             "system": s,
@@ -382,6 +383,16 @@ class API:
     def focus_set(self, mode):
         from .modules import focus
         return focus.focus_set(mode)
+
+    @safe
+    def habits_clear(self):
+        from .core.db import db
+        from .modules import habits
+        db.execute("DELETE FROM usage")
+        db.execute("DELETE FROM launches")
+        if habits._mod:
+            habits._mod._buf = {}
+        return True
 
     @safe
     def missed_clear(self):

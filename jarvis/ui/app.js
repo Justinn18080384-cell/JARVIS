@@ -330,6 +330,24 @@ function costsCard(c) {
     <p class="hint" style="margin-bottom:0">Frag einfach: „Jarvis, wie viel habe ich für KI ausgegeben?“</p></div>`;
 }
 
+/* ===================================================== Gewohnheiten & Gaming */
+const fmtDur = s => { s = Math.round(s || 0); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min`; };
+function habitsCards(h) {
+  if (!h) return "";
+  const max = Math.max(1, ...h.top_today.map(t => t.sec));
+  const apps = h.top_today.length ? h.top_today.map(t => `<div style="margin-bottom:8px"><div class="kv"><span>${t.game ? "🎮 " : ""}${esc(t.app)}</span><span>${fmtDur(t.sec)}</span></div>
+      <div class="bar"><i style="width:${(t.sec / max * 100).toFixed(1)}%" data-live-w="d-h-${esc(t.app)}"></i></div></div>`).join("")
+    : `<p class="hint">Noch keine Daten – JARVIS zählt ab jetzt mit.</p>`;
+  const gmax = Math.max(1, ...h.top_games_week.map(t => t.sec));
+  const games = h.top_games_week.map(t => `<div style="margin-bottom:8px"><div class="kv"><span>${esc(t.app)}</span><span>${fmtDur(t.sec)}</span></div>
+      <div class="bar"><i style="width:${(t.sec / gmax * 100).toFixed(1)}%" data-live-w="d-g-${esc(t.app)}"></i></div></div>`).join("");
+  return `<div class="card"><div class="card-head"><h3>Heute am PC</h3><span class="meta" data-live="d-screen">${fmtDur(h.screen_today)}</span></div>${apps}</div>
+    <div class="card"><div class="card-head"><h3>Gaming</h3>${h.recording ? '<span class="tag profile">schaut zu …</span>' : ""}</div>
+      <div class="cost-stats" style="grid-template-columns:1fr 1fr"><div><b data-live="d-game-today">${fmtDur(h.games_today)}</b><span>Heute</span></div>
+      <div><b data-live="d-game-week">${fmtDur(h.games_week)}</b><span>Diese Woche</span></div></div>
+      <div style="margin-top:14px">${games || '<p class="hint">Noch keine Spielzeit diese Woche.</p>'}</div></div>`;
+}
+
 /* ===================================================== Dashboard */
 async function renderDashboard() {
   const d = await api.dashboard(); const s = d.system, m = d.status.modules;
@@ -362,6 +380,7 @@ async function renderDashboard() {
     ${d.missed && d.missed.length ? `<div class="card span2"><div class="card-head"><h3>Verpasste Meldungen</h3><button class="small ghost" id="missed-clear">Gelesen</button></div>
       <div class="log">${d.missed.map(x => `<div class="e"><span class="t">${new Date(x.ts * 1000).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
         <span class="kind">${esc(["Info", "Wichtig", "Dringend", "Kritisch"][x.priority] || "")}</span><span>${esc(x.title ? x.title + ": " : "")}${esc(x.text)}</span></div>`).join("")}</div></div>` : ""}
+    ${habitsCards(d.habits)}
     ${costsCard(d.costs)}
     <div class="card span2"><div class="card-head"><h3>Letzte Aktivitäten</h3></div><div class="log">${d.activity.map(logRow).join("")}</div></div>`;
   $("#missed-clear") && ($("#missed-clear").onclick = async () => { await api.missed_clear(); renderDashboard(); });
@@ -621,6 +640,13 @@ async function renderSettings() {
       Antworten auf deine eigenen Fragen spricht JARVIS immer. Verpasstes: „Was habe ich verpasst?“</p>
   </div>
 
+  <div class="card"><div class="card-head"><h3>Gewohnheiten</h3></div>
+    <div class="field"><div class="lbl">Bildschirm- &amp; Spielzeit erfassen<small>Bleibt nur auf diesem PC</small></div><div class="ctl">${sw("habits.tracking", c.habits.tracking)}</div></div>
+    <div class="field"><div class="lbl">Vorschläge machen<small>„Du startest um diese Zeit meistens …“ – mit „Nicht jetzt“ eine Stunde Ruhe</small></div><div class="ctl">${sw("habits.suggestions", c.habits.suggestions)}</div></div>
+    <div class="field"><div class="lbl">Erfasste Daten</div><div class="ctl"><button class="ghost danger small" id="s-habits-clear">Verlauf löschen</button></div></div>
+    <p class="hint">Vormachen: „Jarvis, schau mir zu“ → Programme starten → „Speichere das als Gaming-Setup“. Fragen: „Wie war mein Tag?“, „Wie lange habe ich diese Woche gespielt?“</p>
+  </div>
+
   <div class="card"><div class="card-head"><h3>Sicherheit &amp; Datenschutz</h3></div>
     <div class="field"><div class="lbl">Bestätigung erforderlich ab<small>Welche Aktionen JARVIS vorher bestätigen lässt</small></div>
       <div class="ctl"><select data-key="security.confirm_level" data-int>${opt([["1", "allen Aktionen"], ["2", "heiklen Aktionen (empfohlen)"], ["3", "nur kritischen Aktionen"]], String(c.security.confirm_level))}</select></div></div>
@@ -676,6 +702,7 @@ async function renderSettings() {
     $("#s-key-msg").textContent = r.msg; $("#s-key-msg").className = "status-msg " + (r.ok ? "ok" : "bad"); if (r.ok) setTimeout(renderSettings, 1200);
   };
   $("#s-focus").onchange = async e => toast(await api.focus_set(e.target.value), "Modus");
+  $("#s-habits-clear").onclick = () => confirmBox("Bildschirmzeit, Spielzeit und gelernte Gewohnheiten löschen?", async () => { await api.habits_clear(); toast("Verlauf gelöscht.", "Gewohnheiten"); });
   $("#s-el-save") && ($("#s-el-save").onclick = async () => {
     const k = $("#s-el-key").value.trim(); if (!k) return;
     $("#s-el-msg").textContent = "Prüfe …"; const r = await api.set_elevenlabs_key(k);
