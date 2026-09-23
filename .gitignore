@@ -25,6 +25,9 @@ backups/
 *.key
 *.pem
 
+# Startdatei, die JARVIS im Entwicklungsmodus bei Bedarf selbst anlegt
+JARVIS starten.bat
+
 # Editor / System
 .vscode/
 .idea/

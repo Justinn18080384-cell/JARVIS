@@ -32,7 +32,7 @@ if (-not (Test-Path $setup)) { throw "$setup fehlt" }
 # 2) Code sichern und hochladen
 & $git add -A
 & $git diff --cached --quiet
-if ($LASTEXITCODE -ne 0) { & $git commit -q -m "Version $version" }
+if ($LASTEXITCODE -ne 0) { & $git commit -q -m "Version $version" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" }
 & $git push -q
 if ($LASTEXITCODE -ne 0) { throw "git push fehlgeschlagen" }
 

@@ -49,22 +49,48 @@ def _window_geometry(width=1320, height=840, margin=24):
 
 def main():
     background = "--background" in sys.argv
-    # Frühester Punkt: fehlgeschlagene Updates erkennen (Rollback)
-    from jarvis.core import paths
+    from jarvis.core import paths, container
+    # Allererster Schritt: Läuft JARVIS in einem App-Container, würden alle Daten in einen
+    # umgeleiteten Ordner geschrieben – dann außerhalb neu starten, bevor irgendetwas gespeichert wird.
+    stuck_in_container = False
+    if container.redirected():
+        if container.relaunch_outside():
+            sys.exit(0)
+        stuck_in_container = True
     paths.ensure()
+    # Fehlgeschlagene Updates erkennen (Rollback)
     from jarvis.modules import updater
     updater.startup_guard()
 
     handles = _single_instance()
 
+    # Daten aus einer früher umgeleiteten Kopie zurückholen (erst jetzt: keine zweite Instanz nutzt die Datenbank)
+    recovered = None
+    if not stuck_in_container:
+        from jarvis.core.db import db
+        from jarvis.core.config import config as _cfg
+        db.close()
+        try:
+            recovered = container.recover_redirected_data()
+        except Exception as e:
+            from jarvis.core import log as _log
+            _log.error("Datenrettung", e)
+        if recovered:
+            _cfg.load()
+
     import webview
     from jarvis import APP_NAME, VERSION
     from jarvis.core import log
     from jarvis.core.config import config
+    from jarvis.core.events import bus
     from jarvis.app import Jarvis
     from jarvis.api import API
 
     log.logger().info("JARVIS %s startet (%s)", VERSION, "Hintergrund" if background else "normal")
+    if recovered:
+        log.activity("wartung", recovered)
+    if stuck_in_container:
+        log.logger().warning("JARVIS läuft in einem App-Container – Daten werden umgeleitet")
     jarvis = Jarvis(background=background)
     api = API(jarvis)
     hidden = background or config.get("app.start_minimized", False)
@@ -95,6 +121,12 @@ def main():
         threading.Thread(target=watch_show, daemon=True).start()
         jarvis.start_tray()
         jarvis.start_modules()
+        if recovered:
+            bus.emit("notify", title="Daten wiederhergestellt", text=recovered, speak=True, priority=2)
+        if stuck_in_container:
+            bus.emit("notify", title="Achtung", priority=2, speak=False,
+                     text="JARVIS wurde aus einer anderen App heraus gestartet und kann seine Daten nicht dauerhaft speichern. "
+                          "Bitte beende JARVIS und starte ihn über das Desktop-Symbol.")
 
     webview.start(started, gui="edgechromium", debug="--debug" in sys.argv,
                   storage_path=str(paths.LOCAL / "webview"), private_mode=False)
