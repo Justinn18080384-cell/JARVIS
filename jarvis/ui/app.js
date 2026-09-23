@@ -507,7 +507,10 @@ async function renderSettings() {
   <div class="card"><div class="card-head"><h3>Zuhören</h3></div>
     <div class="field"><div class="lbl">Wake-Word „Hey Jarvis“<small>Läuft lokal, auch im Hintergrund</small></div><div class="ctl">${sw("voice.wake_word", v.wake_word)}</div></div>
     <div class="field"><div class="lbl">Empfindlichkeit <small id="thr-l">${Math.round((1 - v.wake_threshold) * 100)} %</small></div><div class="ctl"><input type="range" min="0.2" max="0.9" step="0.05" value="${v.wake_threshold}" data-key="voice.wake_threshold" data-num data-label="thr-l" data-fmt="inv"></div></div>
-    <div class="field"><div class="lbl">Gesprächsmodus<small>Nach einer Antwort direkt weiter zuhören</small></div><div class="ctl">${sw("voice.always_listen", v.always_listen)}</div></div>
+    <div class="field"><div class="lbl">Aktivieren durch Klatschen<small>Zweimal kurz klatschen = „Hey Jarvis“</small></div><div class="ctl">${sw("voice.clap_wake", v.clap_wake)}</div></div>
+    <div class="field"><div class="lbl">Klatsch-Empfindlichkeit <small id="clap-l">${Math.round(v.clap_sensitivity * 100)} %</small><small>Höher = reagiert auf leiseres Klatschen, aber auch eher auf Geräusche</small></div><div class="ctl"><input type="range" min="0.1" max="0.9" step="0.05" value="${v.clap_sensitivity}" data-key="voice.clap_sensitivity" data-num data-label="clap-l" data-fmt="pct"></div></div>
+    <div class="field"><div class="lbl">Gesprächsmodus<small>Nach dem Wecken weiter zuhören, bis du fertig bist („Danke“, „Das war's“ oder Stille)</small></div><div class="ctl">${sw("voice.conversation", v.conversation)}</div></div>
+    <div class="field"><div class="lbl">Auf nächste Frage warten <small id="fu-l">${v.follow_up_seconds} s</small><small>Danach beendet JARVIS das Gespräch mit einem kurzen Ton</small></div><div class="ctl"><input type="range" min="3" max="20" step="1" value="${v.follow_up_seconds}" data-key="voice.follow_up_seconds" data-num data-label="fu-l" data-suffix=" s"></div></div>
     <div class="field"><div class="lbl">Pause bis Satzende <small id="sil-l">${v.silence_seconds} s</small><small>Länger = du kannst beim Sprechen nachdenken</small></div><div class="ctl"><input type="range" min="0.8" max="4" step="0.1" value="${v.silence_seconds}" data-key="voice.silence_seconds" data-num data-label="sil-l" data-suffix=" s"></div></div>
     <div class="field"><div class="lbl">Maximale Aufnahmelänge <small id="maxrec-l">${v.max_record_seconds} s</small></div><div class="ctl"><input type="range" min="10" max="90" step="5" value="${v.max_record_seconds}" data-key="voice.max_record_seconds" data-num data-label="maxrec-l" data-suffix=" s"></div></div>
     <div class="field"><div class="lbl">Spracherkennung<small>OpenAI = sehr genau · Lokal = privat, offline (lädt einmalig ein Modell)</small></div>
@@ -568,7 +571,7 @@ async function renderSettings() {
       if (val === "– wählen –") return;
       if (el.dataset.num !== undefined) val = parseFloat(val);
       if (el.dataset.int !== undefined) val = parseInt(val);
-      if (el.dataset.label) $("#" + el.dataset.label).textContent = el.dataset.fmt === "inv" ? Math.round((1 - val) * 100) + " %" : (val > 0 && el.min < 0 ? "+" : "") + val + (el.dataset.suffix || "");
+      if (el.dataset.label) $("#" + el.dataset.label).textContent = el.dataset.fmt === "inv" ? Math.round((1 - val) * 100) + " %" : el.dataset.fmt === "pct" ? Math.round(val * 100) + " %" : (val > 0 && el.min < 0 ? "+" : "") + val + (el.dataset.suffix || "");
       if (el.tagName === "SELECT" && (el.dataset.key.endsWith("_device")) && val === "") val = null;
       clearTimeout(el._t);
       el._t = setTimeout(async () => { S = await api.settings_set({ [el.dataset.key]: val }); if (el.dataset.rerender !== undefined) renderSettings(); }, el.type === "range" ? 250 : 0);

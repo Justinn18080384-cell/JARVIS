@@ -35,8 +35,11 @@ DEFAULTS = {
         "local_stt_model": "small",
         "wake_word": True,
         "wake_threshold": 0.5,
-        "always_listen": False,         # Folgefragen ohne erneutes Wake-Word
-        "follow_up_seconds": 6,
+        "always_listen": False,         # veraltet – ersetzt durch "conversation"
+        "conversation": True,           # nach dem Wecken im Gespräch bleiben, bis der Nutzer fertig ist
+        "clap_wake": True,              # zweimal Klatschen weckt JARVIS
+        "clap_sensitivity": 0.5,        # 0,1 (nur lautes Klatschen) … 0,9 (sehr empfindlich)
+        "follow_up_seconds": 7,         # im Gespräch: so lange auf die nächste Frage warten
         "silence_seconds": 1.8,         # so lange Pause, bis ein Satz als beendet gilt
         "max_record_seconds": 30,       # maximale Länge einer Sprachaufnahme
         "input_device": None,

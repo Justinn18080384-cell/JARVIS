@@ -54,6 +54,20 @@ ELEVEN_DEFAULT_VOICES = [
     ("21m00Tcm4TlvDq8ikWAM", "Rachel (weiblich, ruhig)"),
 ]
 ONLINE_TTS = ("edge", "openai", "elevenlabs")
+# Sätze, mit denen der Nutzer ein Gespräch beendet (auf normalisierten Text)
+FAREWELL = re.compile(
+    r"^(?:(?:ok(?:ay)?|alles klar|super|perfekt|gut|passt|jo|ja)[,\s]*)?"
+    r"(?:tschüss|tschau|ciao|bye|bis (?:später|dann|bald|morgen|gleich)|gute nacht|nacht"
+    r"|(?:vielen )?dank(?:e)?(?: dir| schön| sehr| jarvis)?"
+    r"|das (?:war'?s|wars|war alles|reicht|wäre alles)|(?:nein|nee|nö),? (?:danke|das war'?s|alles gut|nichts)"
+    r"|nichts (?:mehr|weiter)|ende|schluss|gespräch beenden|du kannst (?:aufhören|pause machen)|lass gut sein)"
+    r"(?:[,\s]*(?:jarvis|das war'?s|das wars|das war alles))*$")
+
+
+def farewell_text(text):
+    t = (text or "").lower().replace("’", "'")
+    t = re.sub(r"[^\wäöüß',\s]", " ", t)
+    return re.sub(r"\s+", " ", t).strip(" ,")
 
 _instance = None
 
@@ -323,6 +337,57 @@ def chime(kind="listen"):
 
 
 # =================================================================== Eingabe
+class ClapDetector:
+    """Erkennt zweimaliges Klatschen im Mikrofonsignal (lokal, ohne KI).
+
+    Ein Klatscher ist ein sehr kurzer, lauter Knall: Die Lautstärke springt innerhalb von 10 ms
+    auf ein Vielfaches des Vorherigen und fällt nach spätestens ~150 ms wieder ab. Sprache, Musik
+    oder Brummen bleiben länger laut und werden verworfen. Ausgelöst wird bei zwei Klatschern
+    im Abstand von 0,12–0,8 Sekunden.
+    """
+    SUB = 160  # 10 ms bei 16 kHz
+
+    def __init__(self):
+        self.noise = 200.0
+        self.prev = []
+        self.t = 0.0
+        self.event = None          # [Start, Spitzenpegel, Länge in 10-ms-Schritten]
+        self.claps = []
+
+    def feed(self, frame) -> bool:
+        x = frame.astype(np.float32)
+        sens = min(0.95, max(0.05, float(config.get("voice.clap_sensitivity", 0.5))))
+        min_level = 7000 - 6000 * sens            # Empfindlichkeit 0,5 → Pegel ab 4000
+        for i in range(0, len(x), self.SUB):
+            seg = x[i:i + self.SUB]
+            if not len(seg):
+                continue
+            rms = float(np.sqrt(np.mean(seg ** 2)))
+            self.t += len(seg) / RATE
+            if self.event is None:
+                before = max(self.prev) if self.prev else self.noise
+                if rms > max(min_level, self.noise * 8) and rms > before * 4:
+                    self.event = [self.t, rms, 1]
+                else:
+                    self.noise = 0.995 * self.noise + 0.005 * rms
+                self.prev = (self.prev + [rms])[-3:]
+                continue
+            ev = self.event
+            ev[1], ev[2] = max(ev[1], rms), ev[2] + 1
+            if rms < ev[1] * 0.2:                   # schnell abgeklungen → Klatscher
+                if ev[2] <= 15:
+                    self.claps.append(ev[0])
+                    log.logger().info("Klatscher gehört (Pegel %d, Grundrauschen %d)", ev[1], self.noise)
+                self.event, self.prev = None, [rms]
+            elif ev[2] > 20:                        # zu lange laut → Sprache/Geräusch
+                self.event, self.prev, self.claps = None, [rms], []
+        self.claps = [c for c in self.claps if self.t - c < 1.5]
+        if len(self.claps) >= 2 and 0.12 <= self.claps[-1] - self.claps[-2] <= 0.8:
+            self.claps = []
+            return True
+        return False
+
+
 class Listener:
     """Dauerhafter Mikrofon-Stream: Wake-Word-Erkennung und Aufnahme."""
 
@@ -340,6 +405,8 @@ class Listener:
         self.follow_up_until = 0
         self.error = ""
         self.last_level = 0
+        self.clap = ClapDetector()
+        self.no_speech_timeout = 8.0
         threading.Thread(target=self._consume, daemon=True, name="listener").start()
 
     def ensure_stream(self):
@@ -398,32 +465,45 @@ class Listener:
             self.error = log.error("Wake-Word-Modell", e)
             return False
 
-    def set_wake(self, on):
-        if on:
-            if self.load_wake() and self.ensure_stream():
-                if self.mode == "off":
-                    self.mode = "wake"
+    def idle_mode(self):
+        """Zustand zwischen Aufnahmen: auf Wake-Word und/oder Klatschen lauschen – oder Mikrofon aus."""
+        if (config.get("voice.wake_word") and self.oww) or config.get("voice.clap_wake"):
+            return "wake"
+        return "off"
+
+    def refresh(self):
+        """Mikrofon-Stream passend zu den Einstellungen (Wake-Word, Klatschen) öffnen oder schließen."""
+        if config.get("voice.wake_word"):
+            self.load_wake()
+        if self.idle_mode() == "wake":
+            if self.ensure_stream() and self.mode == "off":
+                self.mode = "wake"
         else:
             if self.mode == "wake":
                 self.mode = "off"
             if self.mode == "off":
                 self.close_stream()
 
-    def start_record(self):
+    def set_wake(self, on):
+        self.refresh()
+
+    def start_record(self, no_speech_timeout=8.0, quiet=False):
         if not self.ensure_stream():
             return False
         with self.frames.mutex:
             self.frames.queue.clear()
         self.rec, self.heard = [], False
         self.rec_start = self.last_voice = time.time()
+        self.no_speech_timeout = no_speech_timeout
         self.mode = "record"
         bus.emit("state", state="listening")
-        chime("listen")
+        if not quiet:
+            chime("listen")
         return True
 
     def cancel_record(self):
         if self.mode == "record":
-            self.mode = "wake" if config.get("voice.wake_word") and self.oww else "off"
+            self.mode = self.idle_mode()
             bus.emit("state", state="idle")
             if self.mode == "off":
                 self.close_stream()
@@ -438,17 +518,24 @@ class Listener:
             now = time.time()
             if self.mode == "record":
                 self._record(frame, level, now)
-            elif self.mode == "wake" and self.oww:
+            elif self.mode == "wake":
                 # Grundrauschen nachführen
                 self.noise = 0.98 * self.noise + 0.02 * level
-                try:
-                    score = max(self.oww.predict(frame).values(), default=0)
-                except Exception:
-                    score = 0
-                if score >= float(config.get("voice.wake_threshold", 0.5)):
-                    self.oww.reset()
-                    log.logger().info("Wake-Word erkannt (%.2f)", score)
-                    self.voice.on_wake()
+                if self.oww and config.get("voice.wake_word"):
+                    try:
+                        score = max(self.oww.predict(frame).values(), default=0)
+                    except Exception:
+                        score = 0
+                    if score >= float(config.get("voice.wake_threshold", 0.5)):
+                        self.oww.reset()
+                        log.logger().info("Wake-Word erkannt (%.2f)", score)
+                        self.voice.on_wake()
+                        continue
+                # Klatschen – nicht während JARVIS selbst spricht (sonst weckt er sich selbst)
+                if config.get("voice.clap_wake") and not self.voice.speaker.speaking:
+                    if self.clap.feed(frame):
+                        log.logger().info("Doppel-Klatschen erkannt")
+                        self.voice.on_wake()
 
     def _record(self, frame, level, now):
         self.rec.append(frame)
@@ -463,17 +550,18 @@ class Listener:
         total = now - self.rec_start
         max_silence = float(config.get("voice.silence_seconds", 1.8))
         max_total = float(config.get("voice.max_record_seconds", 30))
-        if (self.heard and silence > max_silence) or total > max_total or (not self.heard and total > 8):
+        if (self.heard and silence > max_silence) or total > max_total or (not self.heard and total > self.no_speech_timeout):
             audio = np.concatenate(self.rec) if self.rec else np.zeros(0, np.int16)
             heard = self.heard
             self.rec = []
-            self.mode = "wake" if config.get("voice.wake_word") and self.oww else "off"
+            self.mode = self.idle_mode()
             if self.mode == "off":
                 threading.Thread(target=self.close_stream, daemon=True).start()
             if heard and len(audio) > RATE * 0.4:
                 threading.Thread(target=self.voice.transcribe_and_submit, args=(audio,), daemon=True).start()
             else:
                 bus.emit("state", state="idle")
+                self.voice.on_no_speech()
 
 
 # ================================================================== Modul
@@ -491,11 +579,13 @@ class VoiceModule(Module):
         self._whisper_loading = False
         self.last_transcript = ""
         self.awaiting_follow_up = False
-        bus.on("speech_done", self._after_speech)
+        self.conversation = False      # läuft gerade ein Gespräch (weiterhören ohne Wake-Word)?
+        self._follow_lock = threading.Lock()
+        bus.on("state", self._on_state)
 
     def start(self):
-        if config.get("voice.wake_word"):
-            threading.Thread(target=lambda: self.listener.set_wake(True), daemon=True).start()
+        if config.get("voice.wake_word") or config.get("voice.clap_wake"):
+            threading.Thread(target=self.listener.refresh, daemon=True).start()
         config.on_change(self._cfg)
 
     def stop(self):
@@ -503,12 +593,13 @@ class VoiceModule(Module):
         self.listener.close_stream()
 
     def _cfg(self, key, value):
-        if key == "voice.wake_word":
-            threading.Thread(target=lambda: self.listener.set_wake(bool(value)), daemon=True).start()
+        if key in ("voice.wake_word", "voice.clap_wake"):
+            threading.Thread(target=self.listener.refresh, daemon=True).start()
         if key in ("voice.input_device",):
             self.listener.close_stream()
-            if config.get("voice.wake_word"):
-                self.listener.set_wake(True)
+            self.listener.refresh()
+        if key == "voice.conversation" and not value:
+            self.conversation = False
 
     def parse(self, text, n, ctx):
         return parse_voice(n)
@@ -530,23 +621,61 @@ class VoiceModule(Module):
         # Unterbrechen, falls JARVIS gerade spricht
         if self.speaker.speaking:
             self.speaker.stop()
+        self.conversation = bool(config.get("voice.conversation", True))
         bus.emit("wake")
         self.listener.start_record()
 
     def toggle_listen(self):
         if self.listener.mode == "record":
             self.listener.cancel_record()
+            self.end_conversation(chime_end=False)
             return False
         self.speaker.stop()
+        self.conversation = bool(config.get("voice.conversation", True))
         return self.listener.start_record()
 
-    def _after_speech(self, *_):
-        # Folgefrage ohne erneutes Wake-Word
-        if self.awaiting_follow_up and config.get("voice.always_listen"):
+    # ---------------------------------------------------------- Gespräch
+    def _speaker_busy(self):
+        return self.speaker.speaking or not self.speaker.q.empty()
+
+    def _on_state(self, event, data):
+        """Nach JARVIS' Antwort (gesprochen oder nicht) im Gespräch direkt weiter zuhören."""
+        if data.get("state") != "idle" or not (self.conversation and self.awaiting_follow_up):
+            return
+        if self._speaker_busy() or self.jarvis.brain.busy or self.listener.mode == "record":
+            return
+        with self._follow_lock:
+            if not self.awaiting_follow_up:
+                return
             self.awaiting_follow_up = False
-            time.sleep(0.25)
-            if self.listener.mode != "record" and not self.jarvis.brain.ctx.cancel.is_set():
-                self.listener.start_record()
+        threading.Thread(target=self._follow_up, daemon=True).start()
+
+    def _follow_up(self):
+        time.sleep(0.4)  # Nachhall der eigenen Stimme abklingen lassen
+        brain = self.jarvis.brain
+        if not self.conversation or brain.halted or brain.ctx.cancel.is_set():
+            return
+        if self._speaker_busy() or brain.busy:
+            self.awaiting_follow_up = True   # Antwort läuft noch – nach ihrem Ende erneut versuchen
+            return
+        if self.listener.mode != "record":
+            # leise weiterhören – nur kurz warten, ob der Nutzer noch etwas sagt
+            self.listener.start_record(no_speech_timeout=float(config.get("voice.follow_up_seconds", 7)), quiet=True)
+
+    def on_no_speech(self):
+        """Aufnahme ohne Sprache beendet – im Gespräch heißt das: Gespräch ist vorbei."""
+        if self.conversation:
+            self.end_conversation()
+
+    def end_conversation(self, chime_end=True):
+        if not self.conversation:
+            return
+        self.conversation = False
+        self.awaiting_follow_up = False
+        log.logger().info("Gespräch beendet")
+        if chime_end:
+            chime("end")
+        bus.emit("conversation", active=False)
 
     def transcribe_and_submit(self, audio):
         bus.emit("state", state="thinking")
@@ -554,16 +683,29 @@ class VoiceModule(Module):
             text = self.transcribe(audio)
         except Exception as e:
             msg = log.error("Spracherkennung", e)
+            self.end_conversation(chime_end=False)
             bus.emit("state", state="idle")
             self.jarvis.brain.reply("Ich konnte dich nicht verstehen: " + msg, speak=False)
             return
         text = (text or "").strip()
+        # Verabschiedung im Gespräch („Danke, das war's“, „Tschüss“) – Gespräch beenden.
+        # Eigene, sanfte Vereinfachung: normalize() entfernt „danke“ als Füllwort.
+        n = farewell_text(text)
+        if self.conversation and FAREWELL.match(n):
+            bus.emit("transcript", text=text)
+            self.end_conversation(chime_end=False)
+            reply = "Gute Nacht." if "nacht" in n else "Sehr gern." if "dank" in n else "Alles klar, ich bin da, wenn du mich brauchst."
+            self.jarvis.brain.reply(reply)
+            return
         # typische Whisper-Halluzinationen bei Stille verwerfen
         if not text or re.fullmatch(r"(?i)[\s.,!?…]*|untertitel.*|vielen dank\.?|tschüss\.?|copyright.*", text):
             bus.emit("state", state="idle")
+            self.on_no_speech()
             return
         self.last_transcript = text
         bus.emit("transcript", text=text)
+        if self.conversation:
+            bus.emit("conversation", active=True)
         self.awaiting_follow_up = True
         self.jarvis.brain.submit(text, source="voice")
 

@@ -32,10 +32,18 @@ def wake_word(on=True):
     return "Ich höre jetzt auf „Hey Jarvis“." if on else "Wake-Word ist aus. Nutze den Mikrofon-Knopf."
 
 
-@action("conversation_mode", "Dauerhaftes Zuhören für Folgefragen ein-/ausschalten", {"on": B("an?")}, risk=0, module="sprache")
+@action("conversation_mode", "Gesprächsmodus ein-/ausschalten: nach einer Antwort weiter zuhören, bis der Nutzer fertig ist",
+        {"on": B("an?")}, risk=0, module="sprache")
 def conversation_mode(on=True):
-    config.set("voice.always_listen", bool(on))
-    return "Gesprächsmodus an: Nach meiner Antwort höre ich direkt weiter zu." if on else "Gesprächsmodus aus."
+    config.set("voice.conversation", bool(on))
+    return ("Gesprächsmodus an: Nach meiner Antwort höre ich weiter zu, bis du fertig bist." if on
+            else "Gesprächsmodus aus: Nach jeder Antwort brauchst du wieder „Hey Jarvis“.")
+
+
+@action("clap_wake", "Aktivierung durch zweimaliges Klatschen ein-/ausschalten", {"on": B("an?")}, risk=0, module="sprache")
+def clap_wake(on=True):
+    config.set("voice.clap_wake", bool(on))
+    return "Klatsch zweimal, und ich bin da." if on else "Klatschen weckt mich nicht mehr."
 
 
 @action("web_search_toggle", "Websuche der KI ein-/ausschalten", {"on": B("an?")}, risk=0, module="ki")
@@ -61,6 +69,8 @@ class CoreModule(Module):
             return Intent([("privacy_mode", {"on": onoff()})])
         if re.search(r"wake ?word|aktivierungswort", n):
             return Intent([("wake_word", {"on": onoff()})])
+        if re.search(r"klatsch", n) and re.search(r"\b(an|aus|aktivier|deaktivier|ein|abschalt)", n):
+            return Intent([("clap_wake", {"on": onoff()})])
         if re.search(r"gesprächsmodus|(hör|höre) (mir )?(dauerhaft|weiter|immer) zu", n):
             return Intent([("conversation_mode", {"on": onoff()})])
         if re.search(r"websuche|internetsuche", n) and re.search(r"(an|aus|aktivier|deaktivier)", n):

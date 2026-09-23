@@ -5,7 +5,7 @@
     ai: { enabled: true, provider: "openai", model: "gpt-4.1-mini", ollama_url: "http://localhost:11434", ollama_model: "", web_search: false },
     briefing: { city: "", include_news: true },
     voice: { tts_enabled: true, tts_engine: "edge", edge_voice: "de-DE-ConradNeural", openai_voice: "onyx", elevenlabs_voice: "onwK4e9ZLuTAKqWW03F9", volume: 90, rate: 0,
-      stt_engine: "openai", local_stt_model: "small", wake_word: true, wake_threshold: .5, always_listen: false, silence_seconds: 1.8, max_record_seconds: 30,
+      stt_engine: "openai", local_stt_model: "small", wake_word: true, wake_threshold: .5, conversation: true, clap_wake: true, clap_sensitivity: .5, follow_up_seconds: 7, silence_seconds: 1.8, max_record_seconds: 30,
       input_device: null, output_device: null, chime: true },
     security: { confirm_level: 2, privacy_mode: false, screen_ai: true },
     focus: { mode: "gaming", auto: true, sleep: { enabled: false, from: "23:00", to: "07:00" } },
