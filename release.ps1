@@ -3,13 +3,14 @@
 # Die Versionsnummer kommt aus jarvis/__init__.py (VERSION).
 # Aufruf:  .\release.ps1                      (Beschreibung aus den Commits seit dem letzten Release)
 #          .\release.ps1 -Notes "Neu: …"      (eigene Beschreibung)
-param([string]$Notes = "")
+param([string]$Notes = "", [switch]$NoBuild)
 # Nicht "Stop": Windows PowerShell 5.1 wertet harmlose stderr-Hinweise von git/gh sonst als Fehler.
 # Stattdessen wird nach jedem Schritt $LASTEXITCODE geprüft.
 $ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
 
 $git = "C:\Program Files\Git\cmd\git.exe"
+$env:PATH = "C:\Program Files\Git\cmd;$env:PATH"   # gh ruft intern „git“ auf
 $gh = @("C:\Program Files\GitHub CLI\gh.exe", "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $gh) { throw "GitHub CLI nicht gefunden (winget install GitHub.cli)" }
 & $gh auth status *> $null
@@ -20,9 +21,11 @@ $tag = "v$version"
 & $gh release view $tag *> $null
 if ($LASTEXITCODE -eq 0) { throw "Release $tag gibt es schon – zuerst VERSION in jarvis/__init__.py erhöhen." }
 
-# 1) Bauen
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
-if ($LASTEXITCODE -ne 0) { throw "Build fehlgeschlagen" }
+# 1) Bauen (-NoBuild: vorhandenen Installer dieser Version verwenden)
+if (-not $NoBuild) {
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
+    if ($LASTEXITCODE -ne 0) { throw "Build fehlgeschlagen" }
+}
 $setup = "dist\JARVIS-Setup-$version.exe"
 if (-not (Test-Path $setup)) { throw "$setup fehlt" }
 
