@@ -99,6 +99,9 @@ class Config:
             try:
                 if paths.CONFIG_FILE.exists():
                     self._data = _merge(DEFAULTS, json.loads(paths.CONFIG_FILE.read_text("utf-8-sig")))
+                    # Ältere Versionen haben eine leere Update-Quelle gespeichert – dann Standard nutzen
+                    if not (self._data.get("update", {}).get("url") or "").strip():
+                        self._data["update"]["url"] = DEFAULTS["update"]["url"]
             except Exception:
                 # Kaputte Datei nicht verlieren, sondern beiseitelegen
                 try:
