@@ -47,6 +47,27 @@ def _window_geometry(width=1320, height=840, margin=24):
     }
 
 
+def _clear_ui_cache_after_update(version):
+    """Das Browserfenster (WebView2) speichert Oberflächen-Dateien zwischen. Nach einem Update würde es
+    sonst weiter das alte Design zeigen – daher bei neuer Version den Zwischenspeicher leeren."""
+    import shutil
+    from jarvis.core import paths
+    marker = paths.LOCAL / "webview" / "ui-version.txt"
+    try:
+        if marker.read_text("utf-8").strip() == version:
+            return
+    except OSError:
+        pass
+    base = paths.LOCAL / "webview" / "EBWebView" / "Default"
+    for sub in ("Cache", "Code Cache", "GPUCache", "Service Worker"):
+        shutil.rmtree(base / sub, ignore_errors=True)
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(version, "utf-8")
+    except OSError:
+        pass
+
+
 def main():
     background = "--background" in sys.argv
     from jarvis.core import paths, container
@@ -128,6 +149,7 @@ def main():
                      text="JARVIS wurde aus einer anderen App heraus gestartet und kann seine Daten nicht dauerhaft speichern. "
                           "Bitte beende JARVIS und starte ihn über das Desktop-Symbol.")
 
+    _clear_ui_cache_after_update(VERSION)
     webview.start(started, gui="edgechromium", debug="--debug" in sys.argv,
                   storage_path=str(paths.LOCAL / "webview"), private_mode=False)
     jarvis.quit()
