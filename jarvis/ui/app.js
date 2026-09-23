@@ -423,7 +423,9 @@ async function renderSettings() {
   const [voices, devs] = await Promise.all([api.voices(), api.audio_devices()]);
   const opt = (list, cur) => list.map(([val, label]) => `<option value="${esc(val)}" ${val === cur ? "selected" : ""}>${esc(label)}</option>`).join("");
   const voiceSel = v.tts_engine === "openai" ? opt(voices.openai.map(x => [x, x]), v.openai_voice)
-    : v.tts_engine === "edge" ? opt(voices.edge, v.edge_voice) : "";
+    : v.tts_engine === "edge" ? opt(voices.edge, v.edge_voice)
+    : v.tts_engine === "elevenlabs" ? opt(voices.elevenlabs, v.elevenlabs_voice) : "";
+  const voiceKey = { openai: "voice.openai_voice", edge: "voice.edge_voice", elevenlabs: "voice.elevenlabs_voice" }[v.tts_engine];
   const devOpt = (list, cur) => `<option value="">Windows-Standard</option>` + opt(list.map(x => [x, x]), cur);
   $("#settings").innerHTML = `
   <div class="card"><div class="card-head"><h3>KI</h3></div>
@@ -444,9 +446,13 @@ async function renderSettings() {
 
   <div class="card"><div class="card-head"><h3>Stimme</h3><button class="small" id="s-voice-test">▶ Probehören</button></div>
     <div class="field"><div class="lbl">Sprachausgabe</div><div class="ctl">${sw("voice.tts_enabled", v.tts_enabled)}</div></div>
-    <div class="field"><div class="lbl">Stimm-Engine<small>Neural = natürlich &amp; kostenlos (online) · OpenAI = Premium · Windows = offline</small></div>
-      <div class="ctl"><select data-key="voice.tts_engine" data-rerender>${opt([["edge", "Neural (Microsoft)"], ["openai", "OpenAI KI-Stimme"], ["system", "Windows (lokal)"]], v.tts_engine)}</select></div></div>
-    ${voiceSel ? `<div class="field"><div class="lbl">Stimme</div><div class="ctl"><select data-key="${v.tts_engine === "openai" ? "voice.openai_voice" : "voice.edge_voice"}">${voiceSel}</select></div></div>` : ""}
+    <div class="field"><div class="lbl">Stimm-Engine<small>Neural = natürlich &amp; kostenlos (online) · OpenAI / ElevenLabs = Premium · Windows = offline</small></div>
+      <div class="ctl"><select data-key="voice.tts_engine" data-rerender>${opt([["edge", "Neural (Microsoft)"], ["openai", "OpenAI KI-Stimme"], ["elevenlabs", "ElevenLabs (Premium-KI)"], ["system", "Windows (lokal)"]], v.tts_engine)}</select></div></div>
+    ${v.tts_engine === "elevenlabs" ? `
+    <div class="field col"><div class="lbl">ElevenLabs-API-Schlüssel<small>${S.has_eleven_key ? "Gespeichert (sicher in der Windows-Anmeldeverwaltung)" : "Kostenlos auf elevenlabs.io → Profil → API Keys erstellen"}</small></div>
+      <div class="ctl"><input type="password" id="s-el-key" placeholder="${S.has_eleven_key ? "•••••••• (neu eingeben zum Ändern)" : "sk_…"}"><button id="s-el-save">Speichern</button>${S.has_eleven_key ? '<button class="ghost danger" id="s-el-del">Entfernen</button>' : ""}</div>
+      <div id="s-el-msg" class="status-msg"></div></div>` : ""}
+    ${voiceSel ? `<div class="field"><div class="lbl">Stimme</div><div class="ctl"><select data-key="${voiceKey}">${voiceSel}</select></div></div>` : ""}
     <div class="field"><div class="lbl">Lautstärke <small id="vol-l">${v.volume} %</small></div><div class="ctl"><input type="range" min="0" max="100" value="${v.volume}" data-key="voice.volume" data-num data-label="vol-l" data-suffix=" %"></div></div>
     <div class="field"><div class="lbl">Sprechtempo <small id="rate-l">${v.rate > 0 ? "+" : ""}${v.rate} %</small></div><div class="ctl"><input type="range" min="-50" max="50" step="5" value="${v.rate}" data-key="voice.rate" data-num data-label="rate-l" data-suffix=" %"></div></div>
     <div class="field"><div class="lbl">Ausgabegerät</div><div class="ctl"><select data-key="voice.output_device">${devOpt(devs.outputs, v.output_device)}</select></div></div>
@@ -456,6 +462,8 @@ async function renderSettings() {
     <div class="field"><div class="lbl">Wake-Word „Hey Jarvis“<small>Läuft lokal, auch im Hintergrund</small></div><div class="ctl">${sw("voice.wake_word", v.wake_word)}</div></div>
     <div class="field"><div class="lbl">Empfindlichkeit <small id="thr-l">${Math.round((1 - v.wake_threshold) * 100)} %</small></div><div class="ctl"><input type="range" min="0.2" max="0.9" step="0.05" value="${v.wake_threshold}" data-key="voice.wake_threshold" data-num data-label="thr-l" data-fmt="inv"></div></div>
     <div class="field"><div class="lbl">Gesprächsmodus<small>Nach einer Antwort direkt weiter zuhören</small></div><div class="ctl">${sw("voice.always_listen", v.always_listen)}</div></div>
+    <div class="field"><div class="lbl">Pause bis Satzende <small id="sil-l">${v.silence_seconds} s</small><small>Länger = du kannst beim Sprechen nachdenken</small></div><div class="ctl"><input type="range" min="0.8" max="4" step="0.1" value="${v.silence_seconds}" data-key="voice.silence_seconds" data-num data-label="sil-l" data-suffix=" s"></div></div>
+    <div class="field"><div class="lbl">Maximale Aufnahmelänge <small id="maxrec-l">${v.max_record_seconds} s</small></div><div class="ctl"><input type="range" min="10" max="90" step="5" value="${v.max_record_seconds}" data-key="voice.max_record_seconds" data-num data-label="maxrec-l" data-suffix=" s"></div></div>
     <div class="field"><div class="lbl">Spracherkennung<small>OpenAI = sehr genau · Lokal = privat, offline (lädt einmalig ein Modell)</small></div>
       <div class="ctl"><select data-key="voice.stt_engine">${opt([["openai", "OpenAI"], ["local", "Lokal (Whisper)"]], v.stt_engine)}</select></div></div>
     <div class="field"><div class="lbl">Lokales Modell</div><div class="ctl"><select data-key="voice.local_stt_model">${opt([["base", "Base (schnell)"], ["small", "Small (ausgewogen)"], ["medium", "Medium (genau, langsam)"]], v.local_stt_model)}</select></div></div>
@@ -515,6 +523,12 @@ async function renderSettings() {
     $("#s-key-msg").textContent = "Prüfe …"; const r = await api.set_api_key(k);
     $("#s-key-msg").textContent = r.msg; $("#s-key-msg").className = "status-msg " + (r.ok ? "ok" : "bad"); if (r.ok) setTimeout(renderSettings, 1200);
   };
+  $("#s-el-save") && ($("#s-el-save").onclick = async () => {
+    const k = $("#s-el-key").value.trim(); if (!k) return;
+    $("#s-el-msg").textContent = "Prüfe …"; const r = await api.set_elevenlabs_key(k);
+    $("#s-el-msg").textContent = r.msg; $("#s-el-msg").className = "status-msg " + (r.ok ? "ok" : "bad"); if (r.ok) setTimeout(renderSettings, 1200);
+  });
+  $("#s-el-del") && ($("#s-el-del").onclick = () => confirmBox("ElevenLabs-Schlüssel entfernen?", async () => { await api.set_elevenlabs_key(""); renderSettings(); }));
   $("#s-key-del") && ($("#s-key-del").onclick = () => confirmBox("API-Schlüssel entfernen?", async () => { await api.set_api_key(""); renderSettings(); }));
   $("#s-models").onclick = loadModels;
   $("#s-ai-test").onclick = async () => { const r = await api.test_openai(); toast(r.msg, "OpenAI", !r.ok); };
@@ -591,19 +605,21 @@ async function wizAI(b) {
 async function wizVoice(b) {
   const voices = await api.voices(); const v = S.config.voice;
   b.innerHTML = `<h2>Stimme wählen</h2><p>Wähle, wie JARVIS klingen soll. „Neural“ klingt menschlich und ist kostenlos, „OpenAI“ ist die Premium-KI-Stimme.</p>
-    <div class="form"><label>Engine<select id="w-eng"><option value="edge">Neural (Microsoft, empfohlen)</option><option value="openai" ${S.has_key ? "" : "disabled"}>OpenAI KI-Stimme</option><option value="system">Windows (offline)</option><option value="off">Keine Sprachausgabe</option></select></label>
+    <div class="form"><label>Engine<select id="w-eng"><option value="edge">Neural (Microsoft, empfohlen)</option><option value="openai" ${S.has_key ? "" : "disabled"}>OpenAI KI-Stimme</option><option value="elevenlabs" ${S.has_eleven_key ? "" : "disabled"}>ElevenLabs (Premium-KI)</option><option value="system">Windows (offline)</option><option value="off">Keine Sprachausgabe</option></select></label>
     <label>Stimme<select id="w-voice"></select></label><button class="ghost" id="w-test">▶ Probehören</button></div>`;
   const eng = $("#w-eng"); eng.value = v.tts_enabled ? v.tts_engine : "off";
   const fill = () => {
     const e = eng.value;
     $("#w-voice").innerHTML = e === "edge" ? voices.edge.map(([id, l]) => `<option value="${id}" ${id === v.edge_voice ? "selected" : ""}>${esc(l)}</option>`).join("")
-      : e === "openai" ? voices.openai.map(x => `<option ${x === v.openai_voice ? "selected" : ""}>${x}</option>`).join("") : "<option>–</option>";
-    $("#w-voice").disabled = !["edge", "openai"].includes(e);
+      : e === "openai" ? voices.openai.map(x => `<option ${x === v.openai_voice ? "selected" : ""}>${x}</option>`).join("")
+      : e === "elevenlabs" ? voices.elevenlabs.map(([id, l]) => `<option value="${id}" ${id === v.elevenlabs_voice ? "selected" : ""}>${esc(l)}</option>`).join("") : "<option>–</option>";
+    $("#w-voice").disabled = !["edge", "openai", "elevenlabs"].includes(e);
   };
   const apply = () => {
     const e = eng.value, vals = { "voice.tts_enabled": e !== "off", "voice.tts_engine": e === "off" ? "edge" : e };
     if (e === "edge") vals["voice.edge_voice"] = $("#w-voice").value;
     if (e === "openai") vals["voice.openai_voice"] = $("#w-voice").value;
+    if (e === "elevenlabs") vals["voice.elevenlabs_voice"] = $("#w-voice").value;
     return api.settings_set(vals);
   };
   eng.onchange = fill; fill();

@@ -3,6 +3,7 @@
 TTS-Engines:
     edge    – natürliche Microsoft-Neural-Stimmen (online, kostenlos)
     openai  – hochwertige OpenAI-KI-Stimme (kostenpflichtig, pro Zeichen)
+    elevenlabs – sehr natürliche Premium-Stimmen von ElevenLabs (eigener API-Schlüssel)
     system  – lokale Windows-Stimme (offline)
 STT-Engines:
     openai  – OpenAI-Transkription (sehr genau)
@@ -41,6 +42,17 @@ EDGE_VOICES = [
 OPENAI_VOICES = ["onyx", "ash", "echo", "fable", "sage", "verse", "cedar", "marin", "alloy", "ballad", "coral", "nova", "shimmer"]
 OPENAI_STYLE = ("Sprich Deutsch als JARVIS: ein ruhiger, eleganter, leicht britisch-trockener KI-Butler. "
                 "Klar, souverän, freundlich, nicht übertrieben.")
+ELEVEN_API = "https://api.elevenlabs.io/v1"
+# Fertige ElevenLabs-Stimmen (alle sprechen mit dem Multilingual-Modell Deutsch)
+ELEVEN_DEFAULT_VOICES = [
+    ("onwK4e9ZLuTAKqWW03F9", "Daniel (männlich, britisch, ruhig)"),
+    ("JBFqnCBsd6RMkjVDRZzb", "George (männlich, warm)"),
+    ("nPczCjzI2devNBz1zQrb", "Brian (männlich, tief)"),
+    ("pNInz6obpgDQGcFmaJgB", "Adam (männlich, kräftig)"),
+    ("EXAVITQu4vr4xnSDxMaL", "Sarah (weiblich, sanft)"),
+    ("21m00Tcm4TlvDq8ikWAM", "Rachel (weiblich, ruhig)"),
+]
+ONLINE_TTS = ("edge", "openai", "elevenlabs")
 
 _instance = None
 
@@ -94,7 +106,7 @@ class Speaker:
             bus.emit("state", state="speaking")
             try:
                 engine = config.get("voice.tts_engine")
-                if config.get("security.privacy_mode") and engine in ("edge", "openai"):
+                if config.get("security.privacy_mode") and engine in ONLINE_TTS:
                     engine = "system"
                 if engine == "system":
                     self._sapi_say(text)
@@ -122,10 +134,15 @@ class Speaker:
                 if gen != self.gen or self.stop_flag.is_set():
                     break
                 try:
-                    pcm, sr = self._synth_openai(s) if engine == "openai" else self._synth_edge(s)
+                    synth_fn = {"openai": self._synth_openai, "elevenlabs": self._synth_elevenlabs}.get(engine, self._synth_edge)
+                    pcm, sr = synth_fn(s)
                     audio_q.put((pcm, sr))
                 except Exception as e:
-                    log.error("Stimme", e)
+                    msg = log.error("Stimme", e)
+                    now = time.time()
+                    if now - getattr(self, "_last_err_notify", 0) > 60:   # nicht bei jedem Satz melden
+                        self._last_err_notify = now
+                        bus.emit("notify", title="Stimme", text=msg + " Ich spreche vorerst mit der Windows-Stimme.", speak=False)
                     audio_q.put(("error", s))
                     break
             audio_q.put(None)
@@ -135,7 +152,7 @@ class Speaker:
             item = audio_q.get()
             if item is None or self.stop_flag.is_set():
                 break
-            if item[0] == "error":
+            if isinstance(item[0], str) and item[0] == "error":   # item[0] ist sonst ein numpy-Array
                 self._sapi_say(item[1])
                 break
             self._play(*item)
@@ -165,6 +182,25 @@ class Speaker:
         resp = client.audio.speech.create(model=config.get("voice.openai_tts_model"), voice=config.get("voice.openai_voice"),
                                           input=text, instructions=style, response_format="pcm")
         return np.frombuffer(resp.content, dtype=np.int16), 24000
+
+    def _synth_elevenlabs(self, text):
+        import requests
+        key = secrets.get("elevenlabs_api_key")
+        if not key:
+            raise RuntimeError("Kein ElevenLabs-Schlüssel eingerichtet.")
+        rate = int(config.get("voice.rate", 0))
+        r = requests.post(
+            f"{ELEVEN_API}/text-to-speech/{config.get('voice.elevenlabs_voice')}",
+            params={"output_format": "pcm_24000"},
+            headers={"xi-api-key": key, "Content-Type": "application/json"},
+            json={"text": text, "model_id": config.get("voice.elevenlabs_model"), "language_code": "de",
+                  "voice_settings": {"stability": 0.5, "similarity_boost": 0.75,
+                                     "speed": max(0.7, min(1.2, 1 + rate / 100))}},
+            timeout=30,
+        )
+        if not r.ok:
+            raise RuntimeError(_elevenlabs_error(r))
+        return np.frombuffer(r.content, dtype=np.int16), 24000
 
     def _play(self, pcm, sr):
         import sounddevice as sd
@@ -220,6 +256,31 @@ class Speaker:
             t += 1
             bus.emit("level", level=0.3 + 0.3 * abs(np.sin(t / 2)))
         self._sapi = None
+
+
+def _elevenlabs_error(r) -> str:
+    """Verständliche Meldung aus einer ElevenLabs-Fehlerantwort."""
+    try:
+        detail = r.json().get("detail") or {}
+    except Exception:
+        detail = {}
+    if isinstance(detail, str):
+        detail = {"message": detail}
+    code = f"{detail.get('code', '')} {detail.get('status', '')} {detail.get('type', '')}".lower()
+    if "paid_plan_required" in code or "library voice" in (detail.get("message") or "").lower():
+        return ("Diese ElevenLabs-Stimme stammt aus der Voice Library und braucht ein Abo. "
+                "Wähle eine Standardstimme wie Daniel, George oder Brian.")
+    if "quota" in code:
+        return "Dein ElevenLabs-Guthaben für diesen Monat ist aufgebraucht."
+    if "missing_permissions" in code:
+        return "Dem ElevenLabs-Schlüssel fehlt die Berechtigung „Text zu Sprache“."
+    if "unusual_activity" in code:
+        return "ElevenLabs hat den kostenlosen Zugang vorübergehend gesperrt (ungewöhnliche Aktivität)."
+    if r.status_code == 401:
+        return "ElevenLabs-Schlüssel ungültig."
+    if r.status_code == 404:
+        return "Diese ElevenLabs-Stimme gibt es nicht mehr – bitte eine andere wählen."
+    return f"ElevenLabs-Fehler {r.status_code}: {detail.get('message') or r.reason}"
 
 
 def _speakable(text):
@@ -396,7 +457,9 @@ class Listener:
             self.last_voice = now
         silence = now - self.last_voice
         total = now - self.rec_start
-        if (self.heard and silence > 0.9) or total > 15 or (not self.heard and total > 6):
+        max_silence = float(config.get("voice.silence_seconds", 1.8))
+        max_total = float(config.get("voice.max_record_seconds", 30))
+        if (self.heard and silence > max_silence) or total > max_total or (not self.heard and total > 8):
             audio = np.concatenate(self.rec) if self.rec else np.zeros(0, np.int16)
             heard = self.heard
             self.rec = []
@@ -571,6 +634,8 @@ class VoiceModule(Module):
                 self.speaker._synth_edge("Test.")
             elif engine == "openai":
                 self.speaker._synth_openai("Test.")
+            elif engine == "elevenlabs":
+                self.speaker._synth_elevenlabs("Test.")
             out.append(("Stimme", True, f"Engine „{engine}“ funktioniert"))
         except Exception as e:
             out.append(("Stimme", False, log.friendly(e)))
@@ -588,7 +653,33 @@ def list_voices():
         sapi = [v.GetDescription() for v in win32com.client.Dispatch("SAPI.SpVoice").GetVoices()]
     except Exception:
         pass
-    return {"edge": EDGE_VOICES, "openai": OPENAI_VOICES, "system": sapi}
+    return {"edge": EDGE_VOICES, "openai": OPENAI_VOICES, "elevenlabs": elevenlabs_voices()[1], "system": sapi}
+
+
+def elevenlabs_voices():
+    """(ok, [(voice_id, name)], Meldung) – eigene und fertige Stimmen des ElevenLabs-Kontos."""
+    key = secrets.get("elevenlabs_api_key")
+    if not key:
+        return False, ELEVEN_DEFAULT_VOICES, "Kein Schlüssel eingerichtet."
+    try:
+        import requests
+        r = requests.get(f"{ELEVEN_API}/voices", headers={"xi-api-key": key}, timeout=10)
+        if r.status_code == 401:
+            return False, ELEVEN_DEFAULT_VOICES, "Schlüssel ungültig oder ohne Berechtigung „Voices: Read“."
+        r.raise_for_status()
+        voices = []
+        for v in r.json().get("voices", []):
+            labels = v.get("labels") or {}
+            extra = ", ".join(x for x in (labels.get("gender"), labels.get("accent")) if x)
+            # Voice-Library-Stimmen („professional“) gehen über die API nur mit Bezahl-Abo
+            paid = v.get("category") == "professional"
+            name = v["name"] + (f" ({extra})" if extra else "") + (" – nur mit Abo" if paid else "")
+            voices.append((paid, v["voice_id"], name))
+        voices.sort(key=lambda x: (x[0], x[2].lower()))
+        voices = [(vid, name) for _, vid, name in voices]
+        return True, voices or ELEVEN_DEFAULT_VOICES, f"Verbunden – {len(voices)} Stimmen verfügbar."
+    except Exception as e:
+        return False, ELEVEN_DEFAULT_VOICES, log.friendly(e)
 
 
 def audio_devices():

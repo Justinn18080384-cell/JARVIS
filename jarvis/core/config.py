@@ -23,10 +23,12 @@ DEFAULTS = {
     # Sprache
     "voice": {
         "tts_enabled": True,
-        "tts_engine": "edge",          # edge | openai | system | off
+        "tts_engine": "edge",          # edge | openai | elevenlabs | system | off
         "edge_voice": "de-DE-ConradNeural",
         "openai_voice": "onyx",
         "openai_tts_model": "gpt-4o-mini-tts",
+        "elevenlabs_voice": "onwK4e9ZLuTAKqWW03F9",   # „Daniel“ – britisch, ruhig
+        "elevenlabs_model": "eleven_multilingual_v2",
         "volume": 90,                   # 0-100
         "rate": 0,                      # -50 .. +50 (%)
         "stt_engine": "openai",         # openai | local
@@ -35,6 +37,8 @@ DEFAULTS = {
         "wake_threshold": 0.5,
         "always_listen": False,         # Folgefragen ohne erneutes Wake-Word
         "follow_up_seconds": 6,
+        "silence_seconds": 1.8,         # so lange Pause, bis ein Satz als beendet gilt
+        "max_record_seconds": 30,       # maximale Länge einer Sprachaufnahme
         "input_device": None,
         "output_device": None,
         "chime": True,

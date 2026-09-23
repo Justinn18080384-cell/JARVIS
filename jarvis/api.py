@@ -39,7 +39,8 @@ class API:
         cfg = config.all()
         cfg["remote"]["token"] = "••••" if cfg["remote"].get("token") else ""
         return {"version": VERSION, "config": cfg, "has_key": secrets.has("openai_api_key"),
-                "has_ha_token": secrets.has("homeassistant_token"), "status": self._j.api_status(),
+                "has_ha_token": secrets.has("homeassistant_token"),
+                "has_eleven_key": secrets.has("elevenlabs_api_key"), "status": self._j.api_status(),
                 "background": self._j.background, "data_dir": str(paths.DATA)}
 
     def js_error(self, msg):
@@ -304,6 +305,17 @@ class API:
         if not key:
             return {"ok": True, "msg": "Schlüssel entfernt."}
         ok, msg = ai.test()
+        return {"ok": ok, "msg": msg}
+
+    @safe
+    def set_elevenlabs_key(self, key):
+        from .modules import voice
+        secrets.set("elevenlabs_api_key", (key or "").strip())
+        if not key:
+            if config.get("voice.tts_engine") == "elevenlabs":
+                config.set("voice.tts_engine", "edge")
+            return {"ok": True, "msg": "Schlüssel entfernt."}
+        ok, _, msg = voice.elevenlabs_voices()
         return {"ok": ok, "msg": msg}
 
     @safe
