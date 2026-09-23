@@ -82,6 +82,12 @@ class HabitsModule(Module):
     def start(self):
         threading.Thread(target=self._loop, daemon=True, name="habits").start()
 
+    def stop(self):
+        try:
+            self._flush()        # Messwerte der letzten Minute nicht verlieren (Beenden, Update)
+        except Exception:
+            pass
+
     # ------------------------------------------------------ Zuordnung Prozess → Programm
     def _refresh_map(self):
         from . import pc
