@@ -267,9 +267,9 @@ def _html(title, md):
     if in_list:
         out.append("</ul>")
     return f"""<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>{html.escape(title)} – JARVIS-Recherche</title>
-<style>body{{background:#03070c;color:#d6ecf7;font:16px/1.65 "Segoe UI",sans-serif;max-width:860px;margin:40px auto;padding:0 20px}}
-h1,h2,h3{{font-family:Bahnschrift,sans-serif;color:#7af0ff;letter-spacing:.04em}}h1{{border-bottom:1px solid #19d3ff55;padding-bottom:10px}}
-a{{color:#19d3ff}}li{{margin:4px 0}}.meta{{color:#6f8ea3;font-size:13px}}</style></head><body>
+<style>body{{background:#060504;color:#ece5d6;font:16px/1.65 "Segoe UI",sans-serif;max-width:860px;margin:40px auto;padding:0 20px}}
+h1,h2,h3{{font-family:Constantia,Cambria,Georgia,serif;color:#f1d88f;letter-spacing:.04em}}h1{{border-bottom:1px solid #d4af3755;padding-bottom:10px}}
+a{{color:#d4af37}}li{{margin:4px 0}}.meta{{color:#8c8372;font-size:13px}}</style></head><body>
 <div class="meta">JARVIS-Recherche · {time.strftime('%d.%m.%Y %H:%M')}</div>{''.join(out)}</body></html>"""
 
 

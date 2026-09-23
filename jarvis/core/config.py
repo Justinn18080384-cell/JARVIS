@@ -70,6 +70,7 @@ DEFAULTS = {
         "start_minimized": False,
         "close_to_tray": True,
         "boot_animation": True,
+        "animations": True,             # Seiten bauen sich beim Öffnen Stück für Stück auf
         "notifications": True,
         "active_mode": True,
         "auto_backup": True,

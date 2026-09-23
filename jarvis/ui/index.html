@@ -21,8 +21,8 @@
 <!-- ============ Titelleiste ============ -->
 <header id="titlebar" class="pywebview-drag-region">
   <div class="brand pywebview-drag-region">
-    <svg viewBox="0 0 32 32" class="brand-logo"><circle cx="16" cy="16" r="13" /><circle cx="16" cy="16" r="7" /><circle cx="16" cy="16" r="2.5" class="fill"/></svg>
-    <span>J.A.R.V.I.S.</span>
+    <svg viewBox="0 0 32 32" class="brand-logo"><path d="M16 2.5 29.5 16 16 29.5 2.5 16z"/><path d="M16 9.5 22.5 16 16 22.5 9.5 16z"/><circle cx="16" cy="16" r="1.8" class="fill"/></svg>
+    <span>JARVIS</span>
     <small id="version"></small>
   </div>
   <div class="status-pill" id="status-pill"><i></i><span>Online</span></div>
@@ -58,7 +58,7 @@
     <section class="page active" id="page-home">
       <div class="home-grid">
         <div class="core-panel">
-          <div class="hud-corner tl"></div><div class="hud-corner tr"></div><div class="hud-corner bl"></div><div class="hud-corner br"></div>
+          
           <canvas id="core"></canvas>
           <div class="core-state" id="core-state">ONLINE</div>
           <div class="core-hint" id="core-hint">Sag „Hey Jarvis“ oder klicke auf das Mikrofon</div>
@@ -187,7 +187,7 @@
 <div id="modal" class="overlay hidden"><div class="modal" id="modal-box"></div></div>
 <div id="toasts"></div>
 
-<script src="core.js"></script>
+<script src="core.js"></script><script src="reveal.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -30,11 +30,15 @@ async function init() {
   const bootOn = await bootAnimation();
   S = await api.ready();
   $("#version").textContent = "v" + S.version;
+  applyAnimations(S.config.app.animations);
   applyHalted(S.status.halted);
   applyFocus(S.status.modules.focus);
   restoreChat();
   if (bootOn) await sleep(600);
   $("#boot").classList.add("done");
+  // Oberfläche baut sich nach dem Startbildschirm Stück für Stück auf
+  Reveal.intro();
+  Reveal.page($("#page-home"), 350);
   if (!S.config.setup_done) wizard();
   else if (!$("#chat").children.length) greet();
   setInterval(refreshCoreStats, 2500); refreshCoreStats();
@@ -46,8 +50,8 @@ async function bootAnimation() {
   try { const st = await window.pywebview.api.state(); on = st.config.app.boot_animation && !st.background; } catch {}
   if (!on) { $("#boot").classList.add("done"); return false; }
   const bc = new Core($("#boot-canvas"), { boot: true });
-  const title = "J.A.R.V.I.S.";
-  for (let i = 1; i <= title.length; i++) { $("#boot-title").textContent = title.slice(0, i); await sleep(70); }
+  const title = "JARVIS";
+  for (let i = 1; i <= title.length; i++) { $("#boot-title").textContent = title.slice(0, i); await sleep(110); }
   const lines = ["Kernsysteme", "Sprachmodul", "Gedächtnis", "PC-Steuerung", "Profile & Routinen", "Smart Home", "Sicherheitssystem"];
   for (const l of lines) {
     const d = document.createElement("div"); d.innerHTML = `${esc(l)} … <span class="ok">bereit</span>`;
@@ -170,9 +174,15 @@ function go(p) {
   page = p;
   $$("#nav button").forEach(b => b.classList.toggle("active", b.dataset.page === p));
   $$(".page").forEach(s => s.classList.toggle("active", s.id === "page-" + p));
-  ({ dashboard: renderDashboard, memory: renderMemory, automations: renderAutomations, "home-auto": renderRooms,
+  const done = ({ dashboard: renderDashboard, memory: renderMemory, automations: renderAutomations, "home-auto": renderRooms,
      phone: renderPhone, log: renderLog, diagnose: renderBackups, settings: renderSettings }[p] || (() => {}))();
+  // Seite erst aufbauen, wenn ihr Inhalt da ist
+  Promise.resolve(done).catch(() => {}).then(() => { if (page === p) Reveal.page($("#page-" + p)); });
   if (p === "home") setTimeout(() => core.resize(), 20);
+}
+function applyAnimations(on) {
+  Reveal.on = on !== false;
+  document.body.classList.toggle("no-anim", !Reveal.on);
 }
 
 /* ===================================================== Hilfen */
@@ -550,6 +560,7 @@ async function renderSettings() {
     <div class="field"><div class="lbl">Minimiert starten</div><div class="ctl">${sw("app.start_minimized", c.app.start_minimized)}</div></div>
     <div class="field"><div class="lbl">Schließen = in den Tray</div><div class="ctl">${sw("app.close_to_tray", c.app.close_to_tray)}</div></div>
     <div class="field"><div class="lbl">Startanimation</div><div class="ctl">${sw("app.boot_animation", c.app.boot_animation)}</div></div>
+    <div class="field"><div class="lbl">Aufbau-Animationen<small>Seiten bauen sich beim Öffnen Stück für Stück auf</small></div><div class="ctl">${sw("app.animations", c.app.animations !== false)}</div></div>
     <div class="field"><div class="lbl">Benachrichtigungen</div><div class="ctl">${sw("app.notifications", c.app.notifications)}</div></div>
     <div class="field"><div class="lbl">Aktiver Modus<small>Auf Ereignisse reagieren (Akku, USB, Programmstarts …)</small></div><div class="ctl">${sw("app.active_mode", c.app.active_mode)}</div></div>
     <div class="field"><div class="lbl">Tägliches Backup</div><div class="ctl">${sw("app.auto_backup", c.app.auto_backup)}</div></div>
@@ -574,6 +585,7 @@ async function renderSettings() {
       if (el.dataset.label) $("#" + el.dataset.label).textContent = el.dataset.fmt === "inv" ? Math.round((1 - val) * 100) + " %" : el.dataset.fmt === "pct" ? Math.round(val * 100) + " %" : (val > 0 && el.min < 0 ? "+" : "") + val + (el.dataset.suffix || "");
       if (el.tagName === "SELECT" && (el.dataset.key.endsWith("_device")) && val === "") val = null;
       clearTimeout(el._t);
+      if (el.dataset.key === "app.animations") applyAnimations(val);
       el._t = setTimeout(async () => { S = await api.settings_set({ [el.dataset.key]: val }); if (el.dataset.rerender !== undefined) renderSettings(); }, el.type === "range" ? 250 : 0);
     });
   });
