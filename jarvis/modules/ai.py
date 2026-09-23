@@ -171,14 +171,31 @@ class AIModule(Module):
 
     # -------------------------------------------------------------- Chat
     def _instructions(self, ctx):
-        now = datetime.datetime.now().strftime("%A, %d.%m.%Y %H:%M")
+        return self._static_instructions() + "\n\n" + "\n".join(self._dynamic_context(ctx))
+
+    def _static_instructions(self, local=False):
+        """Was sich selten ändert – steht vorn, damit lokale Modelle es zwischenspeichern können."""
         facts = memory.context_text()
         user = config.get("user_name") or ""
-        parts = [PERSONA, f"Aktuelle Zeit: {now}."]
+        parts = [PERSONA]
+        if local:
+            parts.append(f"Technischer Hintergrund: Du läufst gerade lokal auf dem PC des Nutzers über Ollama "
+                         f"(Modell {config.get('ai.ollama_model')}) – kostenlos und offline, ohne Internetsuche. "
+                         "Fragt der Nutzer, ob Ollama bzw. die lokale KI läuft, bestätige das kurz.")
+            parts.append("Jede Nutzernachricht beginnt mit Kontext in eckigen Klammern (Uhrzeit, aktives Fenster). "
+                         "Das ist nur Hintergrundwissen – erwähne es nicht von dir aus, nur wenn es zur Frage passt.")
         if user:
             parts.append(f"Der Nutzer heißt {user}.")
         if facts:
             parts.append("Bekannte Fakten über den Nutzer (lokales Gedächtnis):\n" + facts)
+        if local:
+            parts.append(GERMAN_ONLY)
+        return "\n\n".join(parts)
+
+    def _dynamic_context(self, ctx):
+        """Was sich ständig ändert (Uhrzeit, aktives Fenster …)."""
+        now = datetime.datetime.now().strftime("%A, %d.%m.%Y %H:%M")
+        parts = [f"Aktuelle Zeit: {now}."]
         try:
             from .pc import tracker, windows
             w = windows.info(tracker.target()) if tracker else None
@@ -190,7 +207,7 @@ class AIModule(Module):
             parts.append(f"Zuletzt gestartetes Programm: {ctx.last_app.get('name')}.")
         if getattr(ctx, "source", "") == "remote":
             parts.append("Der Nutzer spricht gerade über die Handy-App mit dir, nicht direkt am PC.")
-        return "\n\n".join(parts)
+        return parts
 
     def chat(self, text, ctx, silent=False):
         if not self.available():
@@ -249,8 +266,11 @@ class AIModule(Module):
                                                    "parameters": t["parameters"]}}
                  for t in registry.ai_tools() if t["name"] in OLLAMA_TOOLS]
         hist = ctx.history[-min(6, config.get("ai.max_history", 12)):]   # kurzer Verlauf: Kontext lokaler Modelle ist klein
-        msgs = ([{"role": "system", "content": self._instructions(ctx) + "\n\n" + GERMAN_ONLY}]
-                + [dict(h) for h in hist] + [{"role": "user", "content": text}])
+        # Feste Anweisungen vorn (werden von Ollama zwischengespeichert), Wechselndes direkt an die Frage –
+        # sonst liest das Modell bei jeder Anfrage alles neu (~25 s statt ~4 s auf einer GTX 1070).
+        context = " ".join(self._dynamic_context(ctx))
+        msgs = ([{"role": "system", "content": self._static_instructions(local=True)}]
+                + [dict(h) for h in hist] + [{"role": "user", "content": f"[{context}]\n{text}"}])
         for _ in range(6):
             self.requests += 1
             bus.emit("ai_request", model=model)
