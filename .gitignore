@@ -5,7 +5,10 @@ __pycache__/
 *.py[cod]
 
 # Build-Ausgaben (Installer werden als GitHub-Release hochgeladen, nicht ins Repo)
-build/
+build/*
+!build/installer.iss
+!build/jarvis.spec
+!build/version_info.txt
 dist/
 *.spec.bak
 

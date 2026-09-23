@@ -18,6 +18,35 @@ def _single_instance():
     return mutex, show_evt
 
 
+def _window_geometry(width=1320, height=840, margin=24):
+    """Fenstergröße an den Arbeitsbereich des Hauptmonitors anpassen.
+
+    pywebview rechnet in logischen Pixeln (Windows-Skalierung). Arbeitsbereich und DPI
+    werden aus derselben Quelle gelesen, damit das Verhältnis unabhängig vom
+    DPI-Modus des Prozesses stimmt – sonst ragt das rahmenlose Fenster bei 150 %
+    Skalierung über den Bildschirm und die Titelleiste ist unerreichbar.
+    """
+    try:
+        import ctypes
+        import win32api
+        mon = win32api.MonitorFromPoint((0, 0), 1)  # MONITOR_DEFAULTTOPRIMARY
+        left, top, right, bottom = win32api.GetMonitorInfo(mon)["Work"]
+        dpi_x, dpi_y = ctypes.c_uint(), ctypes.c_uint()
+        ctypes.windll.shcore.GetDpiForMonitor(int(mon), 0, ctypes.byref(dpi_x), ctypes.byref(dpi_y))
+        scale = (dpi_x.value or 96) / 96
+        wa_x, wa_y = left / scale, top / scale
+        wa_w, wa_h = (right - left) / scale, (bottom - top) / scale
+    except Exception:
+        return {"width": width, "height": height, "min_size": (960, 640)}
+    w = int(min(width, wa_w - 2 * margin))
+    h = int(min(height, wa_h - 2 * margin))
+    return {
+        "width": w, "height": h,
+        "x": int(wa_x + (wa_w - w) / 2), "y": int(wa_y + (wa_h - h) / 2),
+        "min_size": (min(960, w), min(640, h)),
+    }
+
+
 def main():
     background = "--background" in sys.argv
     # Frühester Punkt: fehlgeschlagene Updates erkennen (Rollback)
@@ -42,7 +71,7 @@ def main():
 
     window = webview.create_window(
         APP_NAME, url=str(paths.UI_DIR / "index.html"), js_api=api,
-        width=1320, height=840, min_size=(960, 640), frameless=True, easy_drag=False,
+        **_window_geometry(), frameless=True, easy_drag=False,
         background_color="#03070c", hidden=hidden, text_select=True,
     )
     jarvis.window = jarvis_window = window
