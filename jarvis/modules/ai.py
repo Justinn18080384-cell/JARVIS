@@ -31,6 +31,17 @@ Du kannst den PC über Werkzeuge steuern. Nutze sie, wenn der Nutzer etwas getan
 wirklich mehrdeutig ist. Wenn der Nutzer dir etwas Persönliches über sich erzählt, speichere es mit memory_remember. \
 Wenn er möchte, dass du auf einen Satz hin etwas tust ("wenn ich X sage, mach Y"), lege mit automation_create einen Befehl an. \
 Erfinde keine Fakten über den Nutzer – nutze das Gedächtnis."""
+# Lokale Modelle bekommen nur die wichtigsten Werkzeuge: Alle 80+ würden ~6.500 Tokens kosten – mehr als
+# Ollamas Standard-Kontext (4.096) – und das Modell langsam und unsicher machen.
+OLLAMA_TOOLS = {
+    "memory_remember", "memory_recall", "app_open", "app_close", "window_restore", "window_minimize",
+    "volume_set", "volume_change", "mute", "media", "pc_lock", "screenshot", "system_info",
+    "open_url", "web_search_open", "open_folder", "time_now", "timer",
+    "automation_create", "automation_run", "weather", "device_set", "focus_set",
+}
+# Zusatz für lokale Modelle (Qwen & Co. rutschen sonst gelegentlich ins Russische/Chinesische)
+GERMAN_ONLY = ("WICHTIG: Antworte IMMER und AUSSCHLIESSLICH auf Deutsch. Verwende niemals Wörter aus anderen Sprachen "
+               "oder andere Schriftzeichen (kein Kyrillisch, kein Chinesisch).")
 
 
 def _gaming():
@@ -70,6 +81,7 @@ class AIModule(Module):
 
     def start(self):
         bus.on("focus", self._on_focus)
+        bus.on("wake", lambda *_: threading.Thread(target=self.preload_ollama, daemon=True).start())
 
     def _on_focus(self, event, data):
         if data.get("mode") == "gaming" and self.provider() == "ollama" and config.get("ai.unload_on_gaming", True):
@@ -234,19 +246,15 @@ class AIModule(Module):
         c = self.ollama_client()
         model = config.get("ai.ollama_model")
         tools = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
-                                                   "parameters": t["parameters"]}} for t in registry.ai_tools()]
-        hist = ctx.history[-config.get("ai.max_history", 12):]
-        msgs = [{"role": "system", "content": self._instructions(ctx)}] + [dict(h) for h in hist] + [{"role": "user", "content": text}]
+                                                   "parameters": t["parameters"]}}
+                 for t in registry.ai_tools() if t["name"] in OLLAMA_TOOLS]
+        hist = ctx.history[-min(6, config.get("ai.max_history", 12)):]   # kurzer Verlauf: Kontext lokaler Modelle ist klein
+        msgs = ([{"role": "system", "content": self._instructions(ctx) + "\n\n" + GERMAN_ONLY}]
+                + [dict(h) for h in hist] + [{"role": "user", "content": text}])
         for _ in range(6):
             self.requests += 1
             bus.emit("ai_request", model=model)
-            try:
-                resp = c.chat.completions.create(model=model, messages=msgs, tools=tools)
-            except Exception as e:
-                if "does not support tools" in str(e):  # Modell ohne Werkzeug-Unterstützung
-                    resp = c.chat.completions.create(model=model, messages=msgs)
-                else:
-                    raise
+            resp = self._ollama_create(c, model=model, messages=msgs, tools=tools)
             msg = resp.choices[0].message
             if not msg.tool_calls:
                 return _strip_think(msg.content or "")
@@ -258,6 +266,36 @@ class AIModule(Module):
                 msgs.append({"role": "tool", "tool_call_id": t.id, "content": out[:4000]})
             bus.emit("state", state="thinking")
         return ""
+
+    @staticmethod
+    def _ollama_create(c, **kw):
+        """Ollama-Anfrage: standardmäßig ohne „Nachdenken“ (Qwen3 antwortet so in ~1–3 s statt ~7 s).
+        Modelle ohne Nachdenk- oder Werkzeug-Unterstützung werden automatisch ohne diese Optionen erneut gefragt."""
+        if not config.get("ai.ollama_think", False):
+            kw["reasoning_effort"] = "none"
+        for _ in range(3):
+            try:
+                return c.chat.completions.create(**kw)
+            except Exception as e:
+                err = str(e).lower()
+                if "reasoning_effort" in kw and ("think" in err or "reasoning" in err):
+                    kw.pop("reasoning_effort")
+                elif kw.get("tools") and "does not support tools" in err:
+                    kw.pop("tools")
+                else:
+                    raise
+        return c.chat.completions.create(**kw)
+
+    def preload_ollama(self):
+        """Modell im Hintergrund in den Grafikspeicher laden (z. B. sobald „Hey Jarvis“ erkannt wurde),
+        damit die Antwort ohne die ~5 s Ladezeit kommt."""
+        if self.active_provider() != "ollama" or not config.get("ai.ollama_model"):
+            return
+        base = (config.get("ai.ollama_url") or "http://localhost:11434").rstrip("/")
+        try:
+            requests.post(base + "/api/generate", json={"model": config.get("ai.ollama_model"), "prompt": "", "keep_alive": "10m"}, timeout=60)
+        except Exception:
+            pass
 
     def _exec_tool(self, name, arguments, ctx):
         """Führt ein von der KI gewünschtes Werkzeug aus – mit derselben Sicherheitsprüfung wie lokal."""
@@ -291,8 +329,8 @@ class AIModule(Module):
         system = system or PERSONA
         self.requests += 1
         if self.active_provider() == "ollama":
-            resp = self.ollama_client().chat.completions.create(
-                model=config.get("ai.ollama_model"), messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}])
+            resp = self._ollama_create(self.ollama_client(), model=config.get("ai.ollama_model"),
+                                       messages=[{"role": "system", "content": system + "\n\n" + GERMAN_ONLY}, {"role": "user", "content": prompt}])
             return _strip_think(resp.choices[0].message.content or "")
         c = self.client()
         kw = {"tools": [{"type": "web_search"}]} if web else {}

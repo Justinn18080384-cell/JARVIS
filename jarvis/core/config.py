@@ -15,6 +15,7 @@ DEFAULTS = {
         "provider": "openai",          # openai | ollama (lokal)
         "ollama_url": "http://localhost:11434",
         "ollama_model": "",
+        "ollama_think": False,          # Qwen3 „nachdenken“ lassen: gründlicher, aber ~7 s statt ~1–3 s
         "gaming_fallback": "openai",    # beim Zocken: openai (Spiel läuft flüssig) | ollama (trotzdem lokal)
         "unload_on_gaming": True,       # Ollama-Modell beim Spielstart aus dem Grafikspeicher werfen
         "model": "gpt-4.1-mini",
