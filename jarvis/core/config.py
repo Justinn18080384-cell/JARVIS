@@ -56,7 +56,7 @@ DEFAULTS = {
         "auto_backup": True,
     },
     "update": {
-        "url": "",
+        "url": "https://github.com/Justinn18080384-cell/JARVIS",
         "auto_check": True,
         "channel": "stable",
     },
