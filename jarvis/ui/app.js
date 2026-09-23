@@ -566,7 +566,10 @@ async function renderSettings() {
       <div class="ctl"><select data-key="ai.provider" data-rerender>${opt([["openai", "OpenAI"], ["ollama", "Ollama (lokal)"]], c.ai.provider)}</select></div></div>
     ${c.ai.provider === "ollama" ? `
     <div class="field col"><div class="lbl">Ollama-Adresse<small>Ollama von ollama.com installieren, dann z. B. „ollama pull qwen3“</small></div>
-      <div class="ctl"><input data-key="ai.ollama_url" value="${esc(c.ai.ollama_url)}" data-blur></div></div>` : ""}
+      <div class="ctl"><input data-key="ai.ollama_url" value="${esc(c.ai.ollama_url)}" data-blur></div></div>
+    <div class="field"><div class="lbl">Beim Zocken<small>Im Gaming-Modus braucht das Spiel den Grafikspeicher</small></div>
+      <div class="ctl"><select data-key="ai.gaming_fallback">${opt([["openai", "OpenAI nutzen (Spiel läuft flüssig)"], ["ollama", "Trotzdem Ollama"]], c.ai.gaming_fallback || "openai")}</select></div></div>
+    <div class="field"><div class="lbl">Modell beim Spielstart entladen<small>Gibt die ca. 5–6 GB Grafikspeicher sofort frei</small></div><div class="ctl">${sw("ai.unload_on_gaming", c.ai.unload_on_gaming !== false)}</div></div>` : ""}
     <div class="field col"><div class="lbl">OpenAI-API-Schlüssel<small>${S.has_key ? "Gespeichert (sicher in der Windows-Anmeldeverwaltung)" : "Noch nicht eingerichtet – ohne Schlüssel arbeitet JARVIS rein lokal."}</small></div>
       <div class="ctl"><input type="password" id="s-key" placeholder="${S.has_key ? "•••••••• (neu eingeben zum Ändern)" : "sk-…"}"><button id="s-key-save">Speichern</button>${S.has_key ? '<button class="ghost danger" id="s-key-del">Entfernen</button>' : ""}</div>
       <div id="s-key-msg" class="status-msg"></div></div>

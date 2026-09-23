@@ -15,6 +15,8 @@ DEFAULTS = {
         "provider": "openai",          # openai | ollama (lokal)
         "ollama_url": "http://localhost:11434",
         "ollama_model": "",
+        "gaming_fallback": "openai",    # beim Zocken: openai (Spiel läuft flüssig) | ollama (trotzdem lokal)
+        "unload_on_gaming": True,       # Ollama-Modell beim Spielstart aus dem Grafikspeicher werfen
         "model": "gpt-4.1-mini",
         "vision_model": "gpt-4.1-mini",
         "web_search": False,

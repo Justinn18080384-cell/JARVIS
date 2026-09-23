@@ -33,6 +33,11 @@ Wenn er möchte, dass du auf einen Satz hin etwas tust ("wenn ich X sage, mach Y
 Erfinde keine Fakten über den Nutzer – nutze das Gedächtnis."""
 
 
+def _gaming():
+    from . import focus
+    return focus.current() == "gaming"
+
+
 class AIModule(Module):
     name = "ai"
     title = "KI"
@@ -51,7 +56,39 @@ class AIModule(Module):
     # ------------------------------------------------------------ Anbieter
     @staticmethod
     def provider():
+        """Der in den Einstellungen gewählte Anbieter."""
         return config.get("ai.provider", "openai")
+
+    def active_provider(self):
+        """Der gerade tatsächlich genutzte Anbieter: Beim Zocken weicht Ollama auf Wunsch auf OpenAI aus,
+        damit das Spiel den Grafikspeicher für sich hat."""
+        p = self.provider()
+        if (p == "ollama" and _gaming() and config.get("ai.gaming_fallback", "openai") == "openai"
+                and secrets.has("openai_api_key") and not config.get("security.privacy_mode")):
+            return "openai"
+        return p
+
+    def start(self):
+        bus.on("focus", self._on_focus)
+
+    def _on_focus(self, event, data):
+        if data.get("mode") == "gaming" and self.provider() == "ollama" and config.get("ai.unload_on_gaming", True):
+            threading.Thread(target=self.unload_ollama, daemon=True).start()
+
+    def unload_ollama(self):
+        """Geladene Ollama-Modelle sofort aus dem Grafikspeicher werfen (nur wenn wirklich eins geladen ist)."""
+        base = (config.get("ai.ollama_url") or "http://localhost:11434").rstrip("/")
+        try:
+            loaded = [m["name"] for m in requests.get(base + "/api/ps", timeout=3).json().get("models", [])]
+        except Exception:
+            return
+        for name in loaded:
+            try:
+                requests.post(base + "/api/generate", json={"model": name, "keep_alive": 0}, timeout=10)
+            except Exception:
+                pass
+        if loaded:
+            log.activity(M, "Ollama-Modell entladen – Grafikspeicher frei fürs Spiel")
 
     def client(self):
         key = secrets.get("openai_api_key")
@@ -87,7 +124,7 @@ class AIModule(Module):
     def available(self):
         if not config.get("ai.enabled", True):
             return False
-        if self.provider() == "ollama":
+        if self.active_provider() == "ollama":
             return bool(config.get("ai.ollama_model")) and self.ollama_running()
         return not config.get("security.privacy_mode") and secrets.has("openai_api_key")
 
@@ -145,11 +182,11 @@ class AIModule(Module):
 
     def chat(self, text, ctx, silent=False):
         if not self.available():
-            if self.provider() == "ollama":
+            if self.active_provider() == "ollama":
                 return "Ollama ist nicht erreichbar oder es ist kein Modell gewählt. Bitte in den Einstellungen prüfen."
             return "Für diese Frage brauche ich die KI – bitte hinterlege einen OpenAI-Schlüssel in den Einstellungen."
         try:
-            if self.provider() == "ollama":
+            if self.active_provider() == "ollama":
                 answer = self._chat_completions(text, ctx)
             else:
                 answer = self._chat_openai(text, ctx)
@@ -253,7 +290,7 @@ class AIModule(Module):
         """Einzelne Anfrage ohne Werkzeuge (für Briefing, Recherche …)."""
         system = system or PERSONA
         self.requests += 1
-        if self.provider() == "ollama":
+        if self.active_provider() == "ollama":
             resp = self.ollama_client().chat.completions.create(
                 model=config.get("ai.ollama_model"), messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}])
             return _strip_think(resp.choices[0].message.content or "")
@@ -293,6 +330,7 @@ class AIModule(Module):
     def status(self):
         prov = self.provider()
         return {"available": self.available(), "has_key": secrets.has("openai_api_key"), "provider": prov,
+                "active": self.active_provider(),
                 "model": config.get("ai.ollama_model") if prov == "ollama" else config.get("ai.model"),
                 "requests": self.requests, "web_search": config.get("ai.web_search"), "last_error": self.last_error}
 
