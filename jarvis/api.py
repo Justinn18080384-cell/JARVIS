@@ -376,16 +376,16 @@ class API:
 
     @safe
     def finance_import(self):
-        """Kontoauszug (CSV aus dem Online-Banking) auswählen und einlesen."""
+        """Kontoauszug (CSV oder PDF aus dem Online-Banking) auswählen und einlesen."""
         from pathlib import Path
         import webview
         from .modules import finance
-        res = self._j.window.create_file_dialog(webview.FileDialog.OPEN, file_types=("Kontoauszug (*.csv)", "Alle Dateien (*.*)"))
+        res = self._j.window.create_file_dialog(webview.FileDialog.OPEN, file_types=("Kontoauszug (*.csv;*.pdf)", "Alle Dateien (*.*)"))
         if not res:
             return {"ok": False, "msg": "Abgebrochen."}
         src = Path(res[0] if isinstance(res, (list, tuple)) else res)
         try:
-            r = finance.import_csv(src.read_bytes())
+            r = finance.import_statement(src.read_bytes())
         except ValueError as e:
             return {"ok": False, "msg": str(e)}
         return {"ok": True, "msg": f"{r['added']} neue Buchungen importiert" + (f", {r['skipped']} waren schon da." if r["skipped"] else ".")}

@@ -25,7 +25,7 @@ hiddenimports = (
     + ["clr", "pystray._win32", "win32timezone", "comtypes.stream", "keyring.backends.Windows",
        "edge_tts", "miniaudio", "sounddevice", "faster_whisper", "ctranslate2", "onnxruntime",
        "pythoncom", "pywintypes", "win32com.shell.shell", "win32com.shell.shellcon", "bottle", "wsgiref.simple_server",
-       "cryptography", "qrcode", "qrcode.image.pil", "faster_whisper.audio", "av"]
+       "cryptography", "qrcode", "qrcode.image.pil", "faster_whisper.audio", "av", "pypdf"]
     + collect_submodules("qrcode")
 )
 

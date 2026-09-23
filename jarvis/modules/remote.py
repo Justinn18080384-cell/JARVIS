@@ -356,7 +356,7 @@ class RemoteModule(Module):
             auth()
             from . import finance
             try:
-                r = finance.import_csv(bottle.request.body.read(8 * 2**20))
+                r = finance.import_statement(bottle.request.body.read(15 * 2**20))
             except ValueError as e:
                 return {"ok": False, "msg": str(e)}
             return {"ok": True, "msg": f"{r['added']} neue Buchungen importiert" + (f", {r['skipped']} waren schon da." if r["skipped"] else ".")}

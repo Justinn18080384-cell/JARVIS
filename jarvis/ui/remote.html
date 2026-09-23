@@ -208,7 +208,7 @@ label.sw input { width:22px; height:22px; accent-color:var(--accent); }
     <div class="card"><h3>Abos <span class="r" id="fin-subsum"></span></h3><div id="fin-subs"></div>
       <button class="btn small ghost" id="fin-sub-add" style="margin-top:8px">+ Abo</button></div>
     <div class="card"><h3>Letzte Buchungen</h3><div id="fin-recent"></div></div>
-    <label class="btn ghost" style="display:block;text-align:center">Kontoauszug (CSV) importieren<input type="file" id="fin-csv" accept=".csv,text/csv,text/plain" hidden></label>
+    <label class="btn ghost" style="display:block;text-align:center">Kontoauszug importieren (PDF oder CSV)<input type="file" id="fin-csv" accept=".csv,.pdf,text/csv,text/plain,application/pdf" hidden></label>
     <p class="muted" style="text-align:center">Alles bleibt auf deinem PC. JARVIS meldet sich bei keiner Bank an.</p>
   </section>
 
@@ -550,7 +550,7 @@ $("#fin-sub-add").onclick = () => sheet(`<h3>Neues Abo</h3><div class="f"><input
 $("#fin-csv").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   toast("Importiere …");
-  try { const r = await call("/api/finance/import", { method: "POST", body: f, headers: { "Content-Type": "text/csv" } }); toast(r.msg); } catch { toast("Import fehlgeschlagen."); }
+  try { const r = await call("/api/finance/import", { method: "POST", body: f, headers: { "Content-Type": f.type || "application/octet-stream" } }); toast(r.msg); } catch { toast("Import fehlgeschlagen."); }
   e.target.value = ""; renderMoney();
 };
 

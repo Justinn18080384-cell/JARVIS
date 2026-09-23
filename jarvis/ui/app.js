@@ -446,7 +446,7 @@ async function renderFinance() {
     <div class="card span2"><div class="card-head"><h3>Abos &amp; Verträge</h3><span class="meta">≈ ${fmtEur(f.subs_monthly)} im Monat</span></div>
       <div class="list">${subs || '<p class="hint">Noch keine Abos. JARVIS trägt sie am Abbuchungstag automatisch ein und erinnert dich einen Tag vorher.</p>'}</div></div>
     <div class="card span2"><div class="card-head"><h3>Letzte Buchungen</h3></div>
-      <div class="list">${rows || `<div class="empty">Noch keine Buchungen. Sag „Ich habe 12 Euro für Essen ausgegeben“ oder lade im Online-Banking deine Umsätze als CSV herunter und importiere sie.</div>`}</div></div>`;
+      <div class="list">${rows || `<div class="empty">Noch keine Buchungen. Sag „Ich habe 12 Euro für Essen ausgegeben“ oder lade im Online-Banking deinen Kontoauszug (PDF) oder die Umsätze (CSV) herunter und importiere sie.</div>`}</div></div>`;
   $$("#fin [data-del-tx]").forEach(b => b.onclick = async () => { await api.finance_delete(+b.dataset.delTx); renderFinance(); });
   $$("#fin .fin-cat").forEach(sel => sel.onchange = () => api.finance_update(+sel.dataset.tx, sel.value));
   $$("#fin [data-sub]").forEach(b => b.onclick = () => confirmBox("Abo aus der Übersicht entfernen? (Beim Anbieter kündigen musst du selbst.)",

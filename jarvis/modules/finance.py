@@ -1,7 +1,7 @@
 """Finanzen im Blick: Ausgaben, Einnahmen, Budgets und Abos – alles nur lokal auf diesem PC.
 
 Eingabe per Sprache („Ich habe 12,50 Euro für Essen ausgegeben“), in der Oberfläche, am Handy
-oder als CSV-Kontoauszug aus dem Online-Banking (Datei herunterladen und importieren).
+oder als Kontoauszug (PDF oder CSV) aus dem Online-Banking (Datei herunterladen und importieren).
 JARVIS meldet sich mit keiner Bank an, überweist nichts und gibt keine Anlageberatung.
 
 Beträge: negativ = Ausgabe, positiv = Einnahme.
@@ -407,6 +407,100 @@ def import_csv(data: bytes):
             skipped += 1
     log.activity(M, f"Kontoauszug importiert: {added} neue Buchungen, {skipped} schon vorhanden")
     return {"added": added, "skipped": skipped}
+
+
+# ------------------------------------------------------------------ PDF-Import
+_PDF_DATE = re.compile(r"^\s*(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?\s")
+_PDF_AMOUNT = re.compile(r"(?<![\d.,])([+-]?)\s?(\d{1,3}(?:\.\d{3})*,\d{2})\s*(€|EUR)?\s*([+-]|S|H)?\s*$")
+_PDF_SKIP = re.compile(r"kontostand|saldo|übertrag|uebertrag|summe|zwischensumme|gesamtumsatz|dispositionskredit|zinssatz|seite \d", re.I)
+_PDF_INCOME = re.compile(r"gutschrift|gehalt|lohn|eingang|zahlungseingang|überweisungseingang|rückzahlung|erstattung|bafög|kindergeld|rente", re.I)
+_PDF_DATE_ONLY = re.compile(r"^\s*\d{1,2}\.\d{1,2}\.(\d{2,4})?\s*")
+
+
+def pdf_text(data: bytes) -> str:
+    import pypdf
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(data))
+    except Exception:
+        raise ValueError("Das PDF ist beschädigt oder unvollständig – bitte nochmal herunterladen.")
+    if reader.is_encrypted:
+        try:
+            reader.decrypt("")
+        except Exception:
+            raise ValueError("Das PDF ist mit einem Passwort geschützt. Bitte ungeschützt aus dem Online-Banking herunterladen.")
+    pages = []
+    for p in reader.pages:
+        try:
+            pages.append(p.extract_text(extraction_mode="layout") or "")
+        except Exception:
+            pages.append(p.extract_text() or "")
+    return "\n".join(pages)
+
+
+def parse_pdf_statement(text: str):
+    """Buchungen aus dem Text eines Kontoauszugs: Zeilen mit Datum vorne und Betrag hinten,
+    Folgezeilen ohne Datum gehören zum Verwendungszweck. Liefert [(Tag, Betrag, Text)]."""
+    years = re.findall(r"\b(20\d{2})\b", text)
+    default_year = int(max(set(years), key=years.count)) if years else _today().year
+    out, cur = [], None
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if not line.strip():
+            continue
+        dm = _PDF_DATE.match(line)
+        am = _PDF_AMOUNT.search(line)
+        if dm and am and not _PDF_SKIP.search(line):
+            d, mth, y = int(dm.group(1)), int(dm.group(2)), dm.group(3)
+            year = default_year if not y else (int(y) + 2000 if len(y) == 2 else int(y))
+            try:
+                day = datetime.date(year, mth, d).isoformat()
+            except ValueError:
+                cur = None
+                continue
+            desc = line[:am.start()]
+            while _PDF_DATE_ONLY.match(desc):          # Buchungs- und Valutadatum abschneiden
+                desc = _PDF_DATE_ONLY.sub("", desc, count=1)
+            val = float(am.group(2).replace(".", "").replace(",", "."))
+            sign = am.group(1) or am.group(4) or ""
+            if sign in ("-", "S"):
+                val = -val
+            elif sign not in ("+", "H"):
+                val = val if _PDF_INCOME.search(desc) else -val    # ohne Vorzeichen: Gutschrift erkennen, sonst Ausgabe
+            cur = [day, val, re.sub(r"\s{2,}", " ", desc).strip()]
+            out.append(cur)
+        elif cur is not None and not dm and not am and not _PDF_SKIP.search(line) and len(cur[2]) < 160:
+            extra = re.sub(r"\s{2,}", " ", line).strip()
+            if extra:
+                cur[2] = (cur[2] + " – " + extra).strip(" –")
+        elif dm or _PDF_SKIP.search(line):
+            cur = None
+    return [tuple(x) for x in out]
+
+
+def import_pdf(data: bytes):
+    """Kontoauszug als PDF (Sparkasse, Volksbank, DKB, ING, Commerzbank, N26 …) einlesen."""
+    text = pdf_text(data)
+    if len(text.strip()) < 30:
+        raise ValueError("In diesem PDF ist kein Text – vermutlich ein eingescanntes Bild. Bitte den Auszug direkt aus dem Online-Banking herunterladen.")
+    rows = parse_pdf_statement(text)
+    if not rows:
+        raise ValueError("Ich habe in diesem PDF keine Buchungen gefunden. Falls möglich, lade die Umsätze als CSV herunter.")
+    added = skipped = 0
+    for day, amt, note in rows:
+        note = note[:200]
+        h = hashlib.sha1(f"{day}|{amt:.2f}|{note}".encode()).hexdigest()
+        cat = INCOME if amt > 0 else guess_category(note)
+        if add_tx(amt, cat, note, day=day, source="csv", tx_hash=h):
+            added += 1
+        else:
+            skipped += 1
+    log.activity(M, f"Kontoauszug (PDF) importiert: {added} neue Buchungen, {skipped} schon vorhanden")
+    return {"added": added, "skipped": skipped}
+
+
+def import_statement(data: bytes):
+    """CSV oder PDF – am Dateiinhalt erkannt."""
+    return import_pdf(data) if data[:5] == b"%PDF-" else import_csv(data)
 
 
 # ------------------------------------------------------------------ Übersicht

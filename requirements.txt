@@ -12,6 +12,7 @@ openai==3.19.0
 openwakeword==0.6.0
 pillow==12.3.0
 psutil==7.2.2
+pypdf==6.1.1
 pycaw==20260921
 pyinstaller==6.22.3
 pystray==0.19.5
