@@ -1,0 +1,29 @@
+# Python-Umgebung und Zwischendateien
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Build-Ausgaben (Installer werden als GitHub-Release hochgeladen, nicht ins Repo)
+build/
+dist/
+*.spec.bak
+
+# Persönliche Daten und Geheimnisse – dürfen nie ins Repository
+.env
+*.env
+settings.json
+*.broken.json
+*.db
+*.sqlite
+*.log
+logs/
+backups/
+*.key
+*.pem
+
+# Editor / System
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

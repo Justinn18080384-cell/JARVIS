@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><base href="../jarvis/ui/">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JARVIS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ Startanimation ============ -->
+<div id="boot">
+  <canvas id="boot-canvas"></canvas>
+  <div class="boot-text">
+    <div class="boot-title" id="boot-title"></div>
+    <div class="boot-sub">Just A Rather Very Intelligent System</div>
+    <div class="boot-log" id="boot-log"></div>
+  </div>
+</div>
+
+<!-- ============ Titelleiste ============ -->
+<header id="titlebar" class="pywebview-drag-region">
+  <div class="brand pywebview-drag-region">
+    <svg viewBox="0 0 32 32" class="brand-logo"><circle cx="16" cy="16" r="13" /><circle cx="16" cy="16" r="7" /><circle cx="16" cy="16" r="2.5" class="fill"/></svg>
+    <span>J.A.R.V.I.S.</span>
+    <small id="version"></small>
+  </div>
+  <div class="status-pill" id="status-pill"><i></i><span>Online</span></div>
+  <div class="win-buttons">
+    <button id="btn-halt" class="halt" title="Not-Aus: Sprache und Automationen stoppen">
+      <svg viewBox="0 0 24 24"><path d="M12 2v10M6.3 6.3a8 8 0 1 0 11.4 0"/></svg><span>Not-Aus</span>
+    </button>
+    <button data-win="fullscreen" title="Vollbild"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <button data-win="minimize" title="Minimieren"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button data-win="maximize" title="Maximieren"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
+    <button data-win="close" class="close" title="Schließen (in den Tray)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+</header>
+
+<div id="app">
+  <!-- ============ Navigation ============ -->
+  <nav id="nav">
+    <button data-page="home" class="active" title="Zentrale"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span>Zentrale</span></button>
+    <button data-page="dashboard" title="Dashboard"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></button>
+    <button data-page="memory" title="Gedächtnis"><svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h1V4H9zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h-1V4h1z"/></svg><span>Gedächtnis</span></button>
+    <button data-page="automations" title="Profile & Routinen"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="17" cy="6" r="2"/><circle cx="14" cy="18" r="2"/></svg><span>Profile &amp; Routinen</span></button>
+    <button data-page="home-auto" title="Zimmer & Geräte"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Zimmer &amp; Geräte</span></button>
+    <button data-page="phone" title="Handy"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Handy</span></button>
+    <button data-page="log" title="Protokoll"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/></svg><span>Protokoll</span></button>
+    <button data-page="diagnose" title="Diagnose & Backup"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>Diagnose</span></button>
+    <div class="nav-spacer"></div>
+    <button data-page="settings" title="Einstellungen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Einstellungen</span></button>
+  </nav>
+
+  <main id="main">
+    <!-- ============ Zentrale ============ -->
+    <section class="page active" id="page-home">
+      <div class="home-grid">
+        <div class="core-panel">
+          <div class="hud-corner tl"></div><div class="hud-corner tr"></div><div class="hud-corner bl"></div><div class="hud-corner br"></div>
+          <canvas id="core"></canvas>
+          <div class="core-state" id="core-state">ONLINE</div>
+          <div class="core-hint" id="core-hint">Sag „Hey Jarvis“ oder klicke auf das Mikrofon</div>
+          <div class="core-stats" id="core-stats"></div>
+        </div>
+        <div class="chat-panel">
+          <div class="chat-head">
+            <span>Gespräch</span>
+            <button class="ghost small" id="btn-clear-chat" title="Verlauf leeren">Leeren</button>
+          </div>
+          <div id="chat"></div>
+          <div id="halt-banner" class="halt-banner hidden">
+            <span>Not-Aus aktiv – Automationen pausiert.</span><button id="btn-resume" class="small">Freigeben</button>
+          </div>
+          <form id="composer" autocomplete="off">
+            <button type="button" id="btn-mic" class="mic" title="Sprechen (oder „Hey Jarvis“)">
+              <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            </button>
+            <input id="input" placeholder="Schreib JARVIS etwas …" spellcheck="true">
+            <button type="button" id="btn-stop" class="icon-btn hidden" title="Sprechen stoppen"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
+            <button type="submit" class="send" title="Senden"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z"/></svg></button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Dashboard ============ -->
+    <section class="page" id="page-dashboard">
+      <h1>Dashboard</h1>
+      <div class="dash-grid" id="dash"></div>
+    </section>
+
+    <!-- ============ Gedächtnis ============ -->
+    <section class="page" id="page-memory">
+      <h1>Gedächtnis <small>lokal gespeichert – kostet keine API-Anfragen</small></h1>
+      <div class="toolbar">
+        <input id="mem-search" placeholder="Suchen …">
+        <button id="mem-add">+ Eintrag</button>
+      </div>
+      <p class="hint">Sag einfach „Mein Lieblingsspiel ist GTA“, „Merk dir, …“ oder „Vergiss …“ – oder bearbeite die Einträge hier.</p>
+      <div id="mem-list" class="list"></div>
+    </section>
+
+    <!-- ============ Automationen ============ -->
+    <section class="page" id="page-automations">
+      <h1>Profile, Routinen &amp; eigene Befehle</h1>
+      <div class="toolbar">
+        <div class="tabs" id="auto-tabs">
+          <button data-t="all" class="active">Alle</button><button data-t="profile">Profile</button>
+          <button data-t="routine">Routinen</button><button data-t="command">Eigene Befehle</button>
+        </div>
+        <button id="auto-add">+ Neu</button>
+      </div>
+      <p class="hint">Am einfachsten per Sprache: „Wenn ich FiveM sage, starte Discord, TeamSpeak und FiveM mit 5 Sekunden Pause“ · „Jeden Tag um 23 Uhr sperre den PC“.</p>
+      <div id="auto-list" class="cards"></div>
+    </section>
+
+    <!-- ============ Smart Home ============ -->
+    <section class="page" id="page-home-auto">
+      <h1>Zimmer &amp; Geräte</h1>
+      <div class="toolbar">
+        <button id="room-add">+ Zimmer</button>
+        <button id="dev-add">+ Gerät</button>
+        <button id="ha-btn" class="ghost">Home Assistant verbinden</button>
+      </div>
+      <p class="hint">Per Sprache: „Füge im Wohnzimmer eine Lampe namens Deckenlicht hinzu“ · „Licht im Wohnzimmer aus“ · „Mach alles im Schlafzimmer aus“.</p>
+      <div id="rooms" class="rooms"></div>
+    </section>
+
+    <!-- ============ Handy ============ -->
+    <section class="page" id="page-phone">
+      <h1>Handy</h1>
+      <div id="phone"></div>
+    </section>
+
+    <!-- ============ Protokoll ============ -->
+    <section class="page" id="page-log">
+      <h1>Aktivitätsprotokoll</h1>
+      <div class="toolbar">
+        <label class="check"><input type="checkbox" id="log-errors"> nur Fehler</label>
+        <button class="ghost" id="log-open">Log-Ordner öffnen</button>
+        <button class="ghost danger" id="log-clear">Protokoll leeren</button>
+      </div>
+      <div id="log-list" class="log"></div>
+    </section>
+
+    <!-- ============ Diagnose ============ -->
+    <section class="page" id="page-diagnose">
+      <h1>Selbstdiagnose &amp; Backup</h1>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-head"><h3>Selbstdiagnose</h3><button id="diag-run">Prüfung starten</button></div>
+          <div id="diag-list" class="diag"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Backups</h3><button id="backup-now">Backup erstellen</button></div>
+          <p class="hint">Gedächtnis, Profile, Routinen, Geräte und Einstellungen. Täglich automatisch und vor jedem Update.</p>
+          <div id="backup-list" class="list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Einstellungen ============ -->
+    <section class="page" id="page-settings">
+      <h1>Einstellungen</h1>
+      <div id="settings" class="settings"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ Einrichtungsassistent ============ -->
+<div id="wizard" class="overlay hidden">
+  <div class="wizard">
+    <div class="wiz-steps" id="wiz-steps"></div>
+    <div class="wiz-body" id="wiz-body"></div>
+    <div class="wiz-foot">
+      <button class="ghost" id="wiz-back">Zurück</button>
+      <div class="grow"></div>
+      <button class="ghost" id="wiz-skip">Überspringen</button>
+      <button id="wiz-next">Weiter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Dialog ============ -->
+<div id="modal" class="overlay hidden"><div class="modal" id="modal-box"></div></div>
+<div id="toasts"></div>
+
+<script src="../../tools/ui_mock.js"></script><script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

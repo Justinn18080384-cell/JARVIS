@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#03070c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<title>JARVIS</title>
+<style>
+:root { --bg:#03070c; --panel:rgba(9,24,38,.75); --line:rgba(64,200,255,.18); --line2:rgba(64,200,255,.4); --text:#d6ecf7; --muted:#6f8ea3;
+  --accent:#19d3ff; --accent2:#7af0ff; --ok:#34f5a4; --warn:#ffb547; --danger:#ff4d6a; --violet:#a77bff; }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { margin:0; height:100%; background:radial-gradient(600px 400px at 50% 20%, rgba(25,211,255,.1), transparent 70%), var(--bg); color:var(--text);
+  font:15px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; overscroll-behavior:none; }
+body { display:flex; flex-direction:column; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+header { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
+header h1 { margin:0; font-size:15px; letter-spacing:.35em; color:var(--accent2); font-weight:600; }
+.pill { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);
+  border:1px solid var(--line); border-radius:20px; padding:3px 10px; }
+.pill i { width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px var(--ok); }
+.pill.off i { background:var(--danger); box-shadow:0 0 8px var(--danger); }
+.pill.busy i { background:var(--violet); box-shadow:0 0 8px var(--violet); animation:bl .6s infinite; }
+@keyframes bl { 50% { opacity:.3 } }
+nav { display:flex; gap:4px; padding:8px 12px 0; }
+nav button { flex:1; background:transparent; border:1px solid transparent; color:var(--muted); border-radius:10px; padding:8px 4px; font-size:13px; }
+nav button.active { color:var(--accent2); border-color:var(--line2); background:rgba(25,211,255,.1); }
+main { flex:1; overflow:hidden; position:relative; }
+.view { position:absolute; inset:0; overflow-y:auto; padding:12px 14px; display:none; }
+.view.active { display:block; }
+#chat { display:flex; flex-direction:column; gap:8px; padding-bottom:10px; }
+.msg { max-width:86%; padding:9px 13px; border-radius:14px; white-space:pre-wrap; word-wrap:break-word; animation:in .2s; }
+@keyframes in { from { opacity:0; transform:translateY(4px) } }
+.msg.me { align-self:flex-end; background:rgba(25,211,255,.16); border:1px solid rgba(25,211,255,.35); border-bottom-right-radius:4px; }
+.msg.j { align-self:flex-start; background:rgba(255,255,255,.04); border:1px solid var(--line); border-bottom-left-radius:4px; }
+.msg.j::before { content:"JARVIS"; display:block; font-size:10px; letter-spacing:.25em; color:var(--accent); margin-bottom:2px; }
+.msg.sys { align-self:center; color:var(--muted); font-size:12px; }
+.core { display:grid; place-items:center; padding:18px 0 6px; }
+.orb { width:120px; height:120px; border-radius:50%; position:relative;
+  background:radial-gradient(circle, #fff 0 8%, var(--accent) 18%, rgba(25,211,255,.25) 45%, transparent 70%);
+  box-shadow:0 0 40px rgba(25,211,255,.35); transition:transform .15s; }
+.orb::before, .orb::after { content:""; position:absolute; inset:-14px; border-radius:50%; border:2px dashed rgba(25,211,255,.5); animation:spin 12s linear infinite; }
+.orb::after { inset:-26px; border:1px solid rgba(25,211,255,.25); border-top-color:var(--accent); animation-duration:5s; animation-direction:reverse; }
+.orb.listen { background:radial-gradient(circle, #fff 0 8%, #3caaff 18%, rgba(60,170,255,.3) 45%, transparent 70%); }
+.orb.think { background:radial-gradient(circle, #fff 0 8%, var(--violet) 18%, rgba(167,123,255,.3) 45%, transparent 70%); }
+.orb.think::after { animation-duration:1s; }
+@keyframes spin { to { transform:rotate(360deg) } }
+.hint { text-align:center; color:var(--muted); font-size:13px; margin:22px 0 6px; }
+footer { display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--line); background:rgba(3,9,15,.8); align-items:center; }
+footer input { flex:1; background:rgba(3,12,20,.8); border:1px solid var(--line); border-radius:22px; padding:12px 15px; color:var(--text); font-size:16px; outline:none; min-width:0; }
+footer input:focus { border-color:var(--accent); }
+.round { width:48px; height:48px; border-radius:50%; flex:none; display:grid; place-items:center; border:1px solid var(--line2);
+  background:linear-gradient(180deg, rgba(25,211,255,.22), rgba(25,211,255,.08)); color:var(--accent2); }
+.round svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+#mic.rec { background:rgba(255,77,106,.3); border-color:var(--danger); color:#fff; animation:pulse 1.1s infinite; }
+@keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(255,77,106,.5) } 100% { box-shadow:0 0 0 16px rgba(255,77,106,0) } }
+.card { border:1px solid var(--line); background:var(--panel); border-radius:14px; padding:14px; margin-bottom:12px; }
+.card h3 { margin:0 0 10px; font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--accent2); font-weight:600; }
+.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+.stat { border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+.stat b { display:block; font-size:22px; color:var(--accent2); font-weight:500; }
+.stat span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
+.tile { border:1px solid var(--line); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); color:var(--text); text-align:left; font-size:14px; width:100%; }
+.tile small { display:block; color:var(--muted); font-size:11px; margin-top:2px; }
+.tile.on { border-color:rgba(255,214,107,.6); box-shadow:0 0 16px rgba(255,214,107,.15) inset; }
+.tile.on small { color:#ffd66b; }
+.danger { width:100%; padding:14px; border-radius:12px; border:1px solid rgba(255,77,106,.5); background:rgba(255,77,106,.12); color:var(--danger); font-size:15px; letter-spacing:.1em; }
+.btn { width:100%; padding:12px; border-radius:12px; border:1px solid var(--line2); background:rgba(25,211,255,.12); color:var(--accent2); font-size:15px; }
+.row { display:flex; gap:10px; align-items:center; justify-content:space-between; }
+label.sw { display:flex; justify-content:space-between; align-items:center; padding:8px 0; color:var(--text); }
+#login { position:fixed; inset:0; background:var(--bg); display:none; flex-direction:column; justify-content:center; padding:30px; gap:14px; text-align:center; z-index:9; }
+#login input { background:rgba(3,12,20,.8); border:1px solid var(--line); border-radius:12px; padding:13px; color:var(--text); font-size:16px; }
+.muted { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="#19d3ff" stroke-width="2"><circle cx="16" cy="16" r="13"/><circle cx="16" cy="16" r="6"/><circle cx="16" cy="16" r="2" fill="#19d3ff"/></svg>
+  <h1>J.A.R.V.I.S.</h1>
+  <div class="pill off" id="pill"><i></i><span>Verbinde …</span></div>
+</header>
+<nav>
+  <button data-v="talk" class="active">Sprechen</button>
+  <button data-v="home">Zuhause</button>
+  <button data-v="status">Status</button>
+</nav>
+<main>
+  <section class="view active" id="v-talk">
+    <div class="core"><div class="orb" id="orb"></div></div>
+    <div class="hint" id="hint">Tippe auf das Mikrofon und sprich – oder schreibe unten.</div>
+    <div id="chat"></div>
+  </section>
+  <section class="view" id="v-home">
+    <div class="card"><h3>Routinen &amp; Profile</h3><div class="grid" id="autos"></div></div>
+    <div id="rooms"></div>
+  </section>
+  <section class="view" id="v-status">
+    <div class="card"><h3 id="pc-name">PC</h3><div class="grid" id="stats"></div></div>
+    <div class="card"><h3>Einstellungen</h3>
+      <label class="sw">Antworten vorlesen (am Handy)<input type="checkbox" id="tts"></label>
+      <p class="muted">Tipp: Über „Zum Startbildschirm hinzufügen“ wird JARVIS zur App auf deinem Handy.</p>
+    </div>
+    <button class="danger" id="stop">NOT-AUS</button>
+    <p></p>
+    <button class="btn" id="logout">Abmelden</button>
+  </section>
+</main>
+<footer id="footer">
+  <button class="round" id="mic" aria-label="Sprechen"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+  <input id="input" placeholder="Nachricht an JARVIS …" enterkeyhint="send" autocomplete="off">
+  <button class="round" id="send" aria-label="Senden"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z"/></svg></button>
+</footer>
+<div id="login">
+  <h2 style="color:var(--accent2);letter-spacing:.3em;margin:0">JARVIS</h2>
+  <p class="muted">Scanne den QR-Code in JARVIS am PC (Handy → Handy-App) oder gib den Zugangs-Token ein.</p>
+  <input id="tok" placeholder="Zugangs-Token">
+  <button class="btn" id="tok-ok">Verbinden</button>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ls = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+
+// Token aus dem QR-Code (#t=…) übernehmen und aus der Adresszeile entfernen
+const m = location.hash.match(/t=([\w-]+)/);
+if (m) { ls.set("token", m[1]); history.replaceState(null, "", "/"); }
+let token = ls.get("token", "");
+
+async function call(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { Authorization: "Bearer " + token, ...(opts.headers || {}) } });
+  if (r.status === 401) { showLogin(); throw new Error("401"); }
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+function showLogin() { $("#login").style.display = "flex"; }
+$("#tok-ok").onclick = () => { token = $("#tok").value.trim(); ls.set("token", token); $("#login").style.display = "none"; refresh(); };
+$("#logout").onclick = () => { ls.set("token", ""); token = ""; showLogin(); };
+
+// Ansichten
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "v-" + b.dataset.v));
+  $("#footer").style.display = b.dataset.v === "talk" ? "flex" : "none";
+  refresh();
+});
+
+// Chat
+let log = ls.get("remote_chat", []);
+if (!Array.isArray(log)) log = [];
+function add(kind, text, save = true) {
+  const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text;
+  $("#chat").appendChild(d); $("#v-talk").scrollTop = 1e9;
+  if (save) { log.push([kind, text]); log = log.slice(-60); ls.set("remote_chat", log); }
+}
+log.forEach(e => Array.isArray(e) && add(e[0], e[1], false));
+function speak(t) {
+  if (!$("#tts").checked || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(t); u.lang = "de-DE";
+  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith("de")); if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+$("#tts").checked = ls.get("tts", true);
+$("#tts").onchange = () => ls.set("tts", $("#tts").checked);
+
+function orb(s) { $("#orb").className = "orb " + (s || ""); }
+async function sendText(text) {
+  text = text.trim(); if (!text) return;
+  add("me", text); orb("think");
+  try { const r = await call("/api/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    add("j", r.reply); speak(r.reply);
+  } catch (e) { if (e.message !== "401") add("sys", "Keine Verbindung zu JARVIS."); }
+  orb("");
+}
+$("#send").onclick = () => { sendText($("#input").value); $("#input").value = ""; };
+$("#input").addEventListener("keydown", e => { if (e.key === "Enter") $("#send").click(); });
+
+// Spracheingabe: Aufnahme -> an JARVIS (Transkription am PC)
+let rec = null, chunks = [], stream = null, autoStop = null;
+$("#mic").onclick = async () => {
+  if (rec && rec.state === "recording") { rec.stop(); return; }
+  if (!navigator.mediaDevices?.getUserMedia) { add("sys", "Mikrofon nicht verfügbar – bitte die Seite über https:// öffnen."); return; }
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+  catch { add("sys", "Zugriff auf das Mikrofon wurde verweigert."); return; }
+  const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+  rec = new MediaRecorder(stream, type ? { mimeType: type } : {}); chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = async () => {
+    clearTimeout(autoStop); stream.getTracks().forEach(t => t.stop());
+    $("#mic").classList.remove("rec"); orb("think"); $("#hint").textContent = "Verarbeite …";
+    const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+    try {
+      const r = await call("/api/voice", { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
+      if (r.transcript) add("me", r.transcript);
+      add("j", r.reply); speak(r.reply);
+    } catch (e) { if (e.message !== "401") add("sys", "Keine Verbindung zu JARVIS."); }
+    orb(""); $("#hint").textContent = "Tippe auf das Mikrofon und sprich – oder schreibe unten.";
+  };
+  rec.start(); $("#mic").classList.add("rec"); orb("listen"); $("#hint").textContent = "Ich höre zu … (nochmal tippen zum Senden)";
+  autoStop = setTimeout(() => rec.state === "recording" && rec.stop(), 15000);
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+};
+
+// Status & Zuhause
+const TYPE = { light: "Licht", plug: "Steckdose", tv: "Fernseher", speaker: "Lautsprecher", fan: "Ventilator", climate: "Heizung", cover: "Rollladen", other: "Gerät" };
+async function refresh() {
+  if (!token) return showLogin();
+  let s;
+  try { s = await call("/api/status"); } catch (e) { $("#pill").className = "pill off"; $("#pill span").textContent = "Offline"; return; }
+  const busy = ["thinking", "executing", "listening", "speaking"].includes(s.state);
+  $("#pill").className = "pill" + (s.state === "halted" ? " off" : busy ? " busy" : "");
+  $("#pill span").textContent = { halted: "Not-Aus", thinking: "Denkt", executing: "Führt aus", speaking: "Spricht", listening: "Hört zu" }[s.state] || "Online";
+  $("#pc-name").textContent = s.pc.host;
+  $("#stats").innerHTML = [["CPU", s.pc.cpu.toFixed(0) + "%"], ["RAM", s.pc.ram.toFixed(0) + "%"],
+    s.pc.gpu ? ["GPU", s.pc.gpu.load.toFixed(0) + "% · " + s.pc.gpu.temp + "°"] : null, s.pc.volume != null ? ["Lautstärke", s.pc.volume + "%"] : null,
+    ["KI", s.ai ? "bereit" : "lokal"], ["Version", s.version]].filter(Boolean).map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join("");
+  $("#autos").innerHTML = s.automations.map(a => `<button class="tile" data-a="${a.id}">${esc(a.name)}<small>${{ profile: "Profil", routine: "Routine", command: "Befehl" }[a.type]}</small></button>`).join("")
+    || '<p class="muted">Noch keine angelegt.</p>';
+  const rooms = {}; s.devices.forEach(d => (rooms[d.room || "Ohne Zimmer"] ||= []).push(d));
+  $("#rooms").innerHTML = Object.entries(rooms).map(([r, ds]) => `<div class="card"><h3>${esc(r)}</h3><div class="grid">
+    ${ds.map(d => `<button class="tile ${d.state === "on" ? "on" : ""}" data-d="${d.id}">${esc(d.name)}<small>${TYPE[d.type] || ""} · ${d.state === "on" ? "an" : "aus"}</small></button>`).join("")}</div></div>`).join("")
+    || '<div class="card"><p class="muted">Noch keine Smart-Home-Geräte. Sag z. B. „Füge im Wohnzimmer eine Lampe namens Deckenlicht hinzu“.</p></div>';
+  document.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => { const r = await call(`/api/automation/${b.dataset.a}/run`, { method: "POST" }); add("j", r.reply); });
+  document.querySelectorAll("[data-d]").forEach(b => b.onclick = async () => { b.classList.toggle("on"); await call(`/api/device/${b.dataset.d}/toggle`, { method: "POST" }); refresh(); });
+}
+$("#stop").onclick = async () => { await call("/api/stop", { method: "POST" }); add("sys", "Not-Aus ausgelöst."); refresh(); };
+refresh(); setInterval(() => document.visibilityState === "visible" && refresh(), 5000);
+</script>
+</body>
+</html>
