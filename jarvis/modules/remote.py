@@ -26,6 +26,7 @@ import datetime
 import io
 import json
 import ipaddress
+import re
 import secrets as pysecrets
 import socket
 import ssl
@@ -187,6 +188,28 @@ class RemoteModule(Module):
         config.set("remote.token", pysecrets.token_urlsafe(24))
         log.activity("fernzugriff", "Neuer Zugangs-Token erstellt – alte Kopplungen sind ungültig")
 
+    # 6-stelliger Kopplungscode (10 Minuten gültig, nach 5 Fehlversuchen verbraucht) – für die
+    # Home-Bildschirm-App auf dem iPhone, die die Anmeldung aus Safari nicht übernimmt
+    _pair = (None, 0.0, 0)
+
+    def pair_code(self):
+        code, until, fails = self._pair
+        if not code or time.time() > until - 60:
+            code = f"{pysecrets.randbelow(1_000_000):06d}"
+            self._pair = (code, time.time() + 600, 0)
+        return code
+
+    def check_pair(self, code):
+        want, until, fails = self._pair
+        if not want or time.time() > until or fails >= 5:
+            return None
+        if pysecrets.compare_digest(str(code).strip(), want):
+            self._pair = (None, 0.0, 0)
+            log.activity("fernzugriff", "Handy per Kopplungscode angemeldet")
+            return config.get("remote.token")
+        self._pair = (want, until, fails + 1)
+        return None
+
     # ------------------------------------------------------------- Befehle
     def run_command(self, text, source="remote", timeout=60, calls=None):
         replies, done = [], threading.Event()
@@ -269,6 +292,15 @@ class RemoteModule(Module):
         @app.get("/icon.png")
         def icon():
             return bottle.static_file("jarvis.png", root=str(paths.ASSETS_DIR))
+
+        @app.post("/api/pair")
+        def pair():
+            code = re.sub(r"\D", "", str((bottle.request.json or {}).get("code", "")))
+            tok = mod.check_pair(code) if len(code) == 6 else None
+            if not tok:
+                time.sleep(1.0)     # Raten bremsen
+                return {"ok": False}
+            return {"ok": True, "token": tok}
 
         @app.get("/api/status")
         def status():

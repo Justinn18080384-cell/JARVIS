@@ -224,7 +224,7 @@ class API:
         url = remote.pairing_url().split("#")[0]
         return {"adb": bool(phone.adb_path()), "devices": phone.android_devices() + phone.iphone_devices(),
                 "remote": {"enabled": config.get("remote.enabled"), "running": running, "port": config.get("remote.port"),
-                           "url": url, "qr": remote.pairing_qr() if running else "", "tailscale": ".ts.net" in url,
+                           "url": url, "qr": remote.pairing_qr() if running else "", "pair_code": r.pair_code() if running else "", "tailscale": ".ts.net" in url,
                            "push_devices": len(push.subscriptions()), "push_mode": config.get("remote.push_mode", "away"),
                            "speak_on_pc": config.get("remote.speak_on_pc"), "clients": r.status()["clients"] if r else 0}}
 

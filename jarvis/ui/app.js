@@ -619,6 +619,8 @@ async function renderPhone() {
               <li>In Safari: Teilen → „Zum Home-Bildschirm“ – fertig ist die JARVIS-App.</li>
               <li>Die App öffnen und „Push-Nachrichten aktivieren“ tippen.</li>
               <li>Fragt Windows nach der Firewall, den Zugriff erlauben.</li></ol>
+            <p style="margin:10px 0">Kopplungscode für die App: <b style="font:600 22px var(--mono);letter-spacing:.2em;color:var(--accent-2)">${esc(d.remote.pair_code)}</b>
+              <small class="meta">(10 Minuten gültig)</small></p>
             <div class="kv"><span>Adresse</span><span style="user-select:text;font-family:var(--mono)">${esc(d.remote.url)}</span>
               <span>Push-Nachrichten</span><span>${d.remote.push_devices ? d.remote.push_devices + " Handy(s) · " + (d.remote.push_mode === "always" ? "immer" : "wenn du nicht am PC bist") : "noch nicht aktiviert"}</span></div>`
           : `<p class="hint">Aktiviere die Handy-App, um JARVIS vom Handy aus zu steuern – alles, was JARVIS am PC kann: Sprache, Modi, PC-Knöpfe, Lautstärke,

@@ -125,7 +125,7 @@ label.sw input { width:22px; height:22px; accent-color:var(--accent); }
 .sheet .box h3 { margin:0 0 14px; font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent2); }
 .sheet .box .f { display:flex; flex-direction:column; gap:10px; }
 .sheet img { width:100%; border-radius:10px; border:1px solid var(--line); }
-#toast { position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 10px); transform:translate(-50%,-120%); transition:transform .3s; z-index:30;
+#toast { position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 10px); transform:translate(-50%,-120%); transition:transform .3s; z-index:50;
   background:#16130d; border:1px solid var(--line2); border-radius:14px; padding:10px 16px; font-size:14px; max-width:92%; box-shadow:0 10px 30px rgba(0,0,0,.5); }
 #toast.show { transform:translate(-50%,0); }
 #login { position:fixed; inset:0; background:var(--bg); display:none; flex-direction:column; justify-content:center; padding:30px; gap:14px; text-align:center; z-index:40; }
@@ -241,8 +241,8 @@ label.sw input { width:22px; height:22px; accent-color:var(--accent); }
 <div id="toast"></div>
 <div id="login">
   <h2 style="color:var(--accent2);letter-spacing:.3em;margin:0">JARVIS</h2>
-  <p class="muted">Scanne den QR-Code in JARVIS am PC (Handy → Handy-App) oder gib den Zugangs-Token ein.</p>
-  <input class="in" id="tok" placeholder="Zugangs-Token">
+  <p class="muted">Gib den 6-stelligen <b>Kopplungscode</b> ein. Du findest ihn am PC in JARVIS → Handy → Handy-App.</p>
+  <input class="in" id="tok" placeholder="Kopplungscode" inputmode="numeric" autocomplete="one-time-code" style="text-align:center;font-size:24px;letter-spacing:.3em">
   <button class="btn" id="tok-ok">Verbinden</button>
 </div>
 
@@ -288,7 +288,18 @@ async function pc(method, ...args) {
   return r.result;
 }
 function showLogin() { $("#login").style.display = "flex"; }
-$("#tok-ok").onclick = () => { token = $("#tok").value.trim(); ls.set("token", token); $("#login").style.display = "none"; refresh(); };
+$("#tok-ok").onclick = async () => {
+  const v = $("#tok").value.trim();
+  if (/^\d[\d\s]{4,8}$/.test(v)) {        // Kopplungscode
+    const r = await fetch("/api/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: v }) }).then(r => r.json()).catch(() => ({}));
+    if (!r.ok) return toast("Code falsch oder abgelaufen – schau am PC nach dem aktuellen Code.");
+    token = r.token;
+  } else token = v;                        // langer Zugangs-Token
+  ls.set("token", token); $("#tok").value = ""; $("#login").style.display = "none";
+  $('link[rel="manifest"]').href = "/manifest.webmanifest?t=" + encodeURIComponent(token);
+  refresh();
+};
+$("#tok").addEventListener("keydown", e => { if (e.key === "Enter") $("#tok-ok").click(); });
 $("#logout").onclick = () => { ls.set("token", ""); token = ""; showLogin(); };
 
 let toastT;
