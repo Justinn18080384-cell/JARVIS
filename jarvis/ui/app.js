@@ -625,6 +625,7 @@ async function renderPhone() {
               <span>Push-Nachrichten</span><span>${d.remote.push_devices ? d.remote.push_devices + " Handy(s) · " + (d.remote.push_mode === "always" ? "immer" : "wenn du nicht am PC bist") : "noch nicht aktiviert"}</span></div>`
           : `<p class="hint">Aktiviere die Handy-App, um JARVIS vom Handy aus zu steuern – alles, was JARVIS am PC kann: Sprache, Modi, PC-Knöpfe, Lautstärke,
              Bildschirm ansehen, Routinen, Geräte, Finanzen und Push-Nachrichten. Zugriff nur mit geheimem Token (per QR-Code), verschlüsselt über HTTPS.</p>`}
+          <div class="field"><div class="lbl">Jarvis ohne PC: OpenAI-Schlüssel ans Handy geben<small>Dann kann die Handy-App auch denken, wenn der PC aus ist (Kosten wie am PC).</small></div><div class="ctl">${sw("remote.share_ai_key", d.remote.share_ai_key)}</div></div>
           <div class="field"><div class="lbl">Handy-Antworten auch am PC vorlesen</div><div class="ctl">${sw("remote.speak_on_pc", d.remote.speak_on_pc)}</div></div>
           <button class="ghost danger small" id="ph-newtok">Neuen Token erzeugen (alle Handys abmelden)</button>
         </div></div></div></div>`;
@@ -633,6 +634,7 @@ async function renderPhone() {
   $("#ph-con").onclick = async () => { toast(await api.phone_connect($("#ph-ip").value.trim()), "Handy"); setTimeout(renderPhone, 1500); };
   $("#phone [data-key=remote]").onchange = async e => { try { await api.remote_set(e.target.checked); } catch {} renderPhone(); };
   $("#phone [data-key='remote.speak_on_pc']").onchange = e => api.settings_set({ "remote.speak_on_pc": e.target.checked });
+  $("#phone [data-key='remote.share_ai_key']") && ($("#phone [data-key='remote.share_ai_key']").onchange = e => api.settings_set({ "remote.share_ai_key": e.target.checked }));
   $("#ph-newtok").onclick = () => confirmBox("Neuen Token erzeugen? Alle gekoppelten Handys müssen den QR-Code neu scannen.",
     async () => { await api.remote_new_token(); renderPhone(); toast("Neuer Token erstellt – QR-Code neu scannen."); });
 }

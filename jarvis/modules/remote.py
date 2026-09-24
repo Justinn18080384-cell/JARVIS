@@ -277,7 +277,12 @@ class RemoteModule(Module):
 
         @app.get("/")
         def index():
-            return bottle.static_file("remote.html", root=str(paths.UI_DIR))
+            # Nie zwischenspeichern – sonst läuft die Home-Bildschirm-App nach einem Update mit altem Stand weiter
+            r = bottle.static_file("remote.html", root=str(paths.UI_DIR))
+            r.set_header("Cache-Control", "no-store, must-revalidate")
+            r.set_header("Pragma", "no-cache")
+            r.set_header("Expires", "0")
+            return r
 
         @app.get("/manifest.webmanifest")
         def manifest():
@@ -392,6 +397,73 @@ class RemoteModule(Module):
             except ValueError as e:
                 return {"ok": False, "msg": str(e)}
             return {"ok": True, "msg": f"{r['added']} neue Buchungen importiert" + (f", {r['skipped']} waren schon da." if r["skipped"] else ".")}
+
+        # ------------------------------------------- Jarvis ohne PC (Solo-Modus der Handy-App)
+        @app.get("/api/sync")
+        def sync_pull():
+            """Alles, was das Handy braucht, um ohne PC weiterzuarbeiten."""
+            auth()
+            from . import memory, finance
+            f = finance.overview()
+            bottle.response.content_type = "application/json"
+            return json.dumps({
+                "user": config.get("user_name"), "version": mod.jarvis.api_status()["version"],
+                "model": config.get("ai.model") or "gpt-4.1-mini",
+                "key_shared": bool(config.get("remote.share_ai_key")),
+                "memory": [{"label": m["label"], "value": m["value"]} for m in memory.all_facts()][:300],
+                "finance": {k: f[k] for k in ("month_name", "month_spent", "month_earned", "prev_spent", "by_category",
+                                              "budgets", "subs", "subs_monthly", "recent", "categories")},
+                "time": time.time(),
+            }, default=str, ensure_ascii=False)
+
+        @app.post("/api/sync")
+        def sync_push():
+            """Was das Handy ohne PC erledigt hat, nachtragen (jede Änderung nur einmal)."""
+            auth()
+            from . import memory, finance, costs
+            done = set(db.kv_get("sync.done", []))
+            ok = []
+            for op in ((bottle.request.json or {}).get("ops") or [])[:500]:
+                oid = str(op.get("id", ""))[:64]
+                if not oid or oid in done:
+                    ok.append(oid)
+                    continue
+                try:
+                    kind = op.get("op")
+                    if kind == "finance_add":
+                        val = abs(float(op["amount"])) * (1 if op.get("kind") == "einnahme" else -1)
+                        finance.add_tx(val, op.get("category"), op.get("note", ""), day=op.get("day"), source="handy",
+                                       tx_hash=f"handy-{oid}")
+                    elif kind == "memory_set":
+                        memory.remember(op["label"], op["value"])
+                    elif kind == "cost":
+                        p_in, p_cached, p_out = costs._price(op.get("model"))
+                        usd = (int(op.get("tin", 0)) * p_in + int(op.get("tout", 0)) * p_out) / 1_000_000 \
+                            + int(op.get("searches", 0)) * costs.WEB_SEARCH_USD + float(op.get("seconds", 0)) / 60 * costs.TRANSCRIBE_USD_PER_MIN
+                        costs.record("openai", op.get("kind") or "Handy ohne PC", op.get("model"),
+                                     int(op.get("tin", 0)) + int(op.get("tout", 0)), "Tokens", usd)
+                    elif kind == "chat":
+                        log.activity("handy", f"Ohne PC gefragt: {str(op.get('text', ''))[:150]}")
+                    done.add(oid)
+                    ok.append(oid)
+                except Exception as e:
+                    log.error("Handy-Abgleich", e)
+            db.kv_set("sync.done", list(done)[-2000:])
+            if ok:
+                log.logger().info("Handy-Abgleich: %d Änderungen übernommen", len(ok))
+            return {"ok": ok}
+
+        @app.get("/api/solo/key")
+        def solo_key():
+            auth()
+            from ..core import secrets
+            if not config.get("remote.share_ai_key"):
+                return {"ok": False, "msg": "Am PC ist die Übergabe des Schlüssels ausgeschaltet (JARVIS → Handy)."}
+            key = secrets.get("openai_api_key")
+            if not key:
+                return {"ok": False, "msg": "Am PC ist kein OpenAI-Schlüssel eingerichtet."}
+            log.activity("fernzugriff", "OpenAI-Schlüssel an die Handy-App übergeben (für Jarvis ohne PC)")
+            return {"ok": True, "key": key}
 
         # ------------------------------------------------------------ Push
         @app.get("/api/push/key")

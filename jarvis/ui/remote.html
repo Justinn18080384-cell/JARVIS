@@ -27,6 +27,8 @@ header h1 { margin:0; font-size:14px; letter-spacing:.38em; color:var(--accent2)
   border:1px solid var(--line); border-radius:20px; padding:3px 10px; }
 .pill i { width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px var(--ok); }
 .pill.off i { background:var(--danger); box-shadow:0 0 8px var(--danger); }
+.pill.solo i { background:var(--violet); box-shadow:0 0 8px var(--violet); }
+.pill.solo { color:var(--violet); }
 .pill.busy i { background:var(--violet); box-shadow:0 0 8px var(--violet); animation:bl .6s infinite; }
 @keyframes bl { 50% { opacity:.3 } }
 main { flex:1; overflow:hidden; position:relative; }
@@ -215,6 +217,7 @@ label.sw input { width:22px; height:22px; accent-color:var(--accent); }
   <!-- ============ Mehr ============ -->
   <section class="view" id="v-more">
     <div class="card" style="margin-top:8px"><h3>Push-Nachrichten</h3><div id="push-card"></div></div>
+    <div class="card"><h3>Jarvis ohne PC</h3><div id="solo-card"></div></div>
     <div class="card"><h3>Gedächtnis <span class="r"><button class="btn small ghost" id="mem-add">+ Eintrag</button></span></h3><div id="memory"></div></div>
     <div class="card"><h3>Aktivität</h3><div id="activity"></div></div>
     <div class="card"><h3>Einstellungen</h3>
@@ -271,13 +274,15 @@ const svg = k => `<svg viewBox="0 0 24 24">${I[k] || I.chat}</svg>`;
 
 // Token aus dem QR-Code (#t=…) übernehmen und aus der Adresszeile entfernen
 const m = location.hash.match(/t=([\w-]+)/);
-if (m) ls.set("token", m[1]);   // bleibt in der Adresse, damit „Zum Home-Bildschirm“ angemeldet bleibt
+if (m && m[1] !== ls.get("bad_token", "")) ls.set("token", m[1]);   // alte Adresse mit abgelaufenem Zugang ignorieren   // bleibt in der Adresse, damit „Zum Home-Bildschirm“ angemeldet bleibt
 let token = ls.get("token", "");
 if (token) { $('link[rel="manifest"]').href = "/manifest.webmanifest?t=" + encodeURIComponent(token); if (!m) history.replaceState(null, "", "/#t=" + token); }
 
 async function call(path, opts = {}) {
-  const r = await fetch(path, { ...opts, headers: { Authorization: "Bearer " + token, ...(opts.body && !(opts.body instanceof Blob) && !(opts.body instanceof File) ? { "Content-Type": "application/json" } : {}), ...(opts.headers || {}) } });
-  if (r.status === 401) { showLogin(); throw new Error("401"); }
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), opts.timeout || 60000);
+  const r = await fetch(path, { ...opts, signal: ctl.signal, headers: { Authorization: "Bearer " + token, ...(opts.body && !(opts.body instanceof Blob) && !(opts.body instanceof File) ? { "Content-Type": "application/json" } : {}), ...(opts.headers || {}) } });
+  clearTimeout(tm);
+  if (r.status === 401) { if (token) ls.set("bad_token", token); token = ""; ls.set("token", ""); showLogin(); throw new Error("401"); }
   if (!r.ok) throw new Error("HTTP " + r.status);
   return (r.headers.get("content-type") || "").includes("json") ? r.json() : r.blob();
 }
@@ -295,7 +300,7 @@ $("#tok-ok").onclick = async () => {
     if (!r.ok) return toast("Code falsch oder abgelaufen – schau am PC nach dem aktuellen Code.");
     token = r.token;
   } else token = v;                        // langer Zugangs-Token
-  ls.set("token", token); $("#tok").value = ""; $("#login").style.display = "none";
+  ls.set("token", token); ls.set("bad_token", ""); history.replaceState(null, "", "/#t=" + token); $("#tok").value = ""; $("#login").style.display = "none";
   $('link[rel="manifest"]').href = "/manifest.webmanifest?t=" + encodeURIComponent(token);
   refresh();
 };
@@ -317,6 +322,9 @@ function go(v) {
   view = v; ls.set("view", v);
   $$("#tabbar button").forEach(x => x.classList.toggle("active", x.dataset.v === v));
   $$(".view").forEach(s => s.classList.toggle("active", s.id === "v-" + v));
+  if (solo) {   // ohne PC sofort aus dem Handy-Speicher zeigen, nicht erst auf den PC warten
+    try { ({ start: renderSoloStart, money: renderSoloMoney, more: () => { renderSoloMore(); renderSoloCard(); } }[v] || (() => {}))(); } catch (e) { console.error(e); }
+  }
   refresh();
   if (v === "talk") $("#chat").scrollTop = 1e9;
 }
@@ -355,8 +363,15 @@ async function sendText(text) {
   text = text.trim(); if (!text) return;
   if (view !== "talk") go("talk");
   add("me", text); orb("think");
+  if (solo) {
+    try { const a = await soloChat(text); add("j", a); speak(a); } catch (e) { add("sys", e.message || "Fehler"); }
+    orb(""); return;
+  }
   try { showReply(await post("/api/command", { text })); }
-  catch (e) { if (e.message !== "401") add("sys", "Keine Verbindung zu JARVIS."); }
+  catch (e) {
+    if (e.message === "401") { orb(""); return; }
+    enterSolo(); orb(""); $$(".msg.me").pop()?.remove(); chatLog.pop(); return sendText(text);   // PC weg → Handy übernimmt
+  }
   orb("");
 }
 $("#send").onclick = () => { sendText($("#input").value); $("#input").value = ""; };
@@ -376,10 +391,20 @@ $("#mic").onclick = async () => {
   const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
   rec = new MediaRecorder(stream, type ? { mimeType: type } : {}); chunks = [];
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const recStart = Date.now();
   rec.onstop = async () => {
     clearTimeout(autoStop); stream.getTracks().forEach(t => t.stop());
     $("#mic").classList.remove("rec"); orb("think"); $("#hint").textContent = "Verarbeite …";
     const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+    if (solo) {
+      try {
+        if (!soloKey()) throw new Error(await soloChat(""));
+        const t = await soloTranscribe(blob, (Date.now() - recStart) / 1000);
+        if (!t) add("sys", "Ich habe nichts verstanden.");
+        else { add("me", t); const a = await soloChat(t); add("j", a); speak(a); }
+      } catch (e) { add("sys", e.message || "Fehler"); }
+      orb(""); $("#hint").textContent = "Tippe auf das Mikrofon und sprich – oder schreibe."; return;
+    }
     try {
       const r = await call("/api/voice", { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
       if (r.transcript) add("me", r.transcript);
@@ -481,6 +506,7 @@ function renderModes(f) {
 }
 async function renderStart() {
   const h = await pc("home");
+  $("#modes").closest(".card").style.display = "";
   const hr = new Date().getHours();
   $("#hello").textContent = (hr < 5 ? "Gute Nacht" : hr < 11 ? "Guten Morgen" : hr < 18 ? "Hallo" : "Guten Abend") + (status?.user ? ", " + status.user : "");
   $("#hello-sub").textContent = h.weather ? `${h.weather.city}: ${h.weather.temp}° · ${h.weather.desc} · ${h.weather.min}–${h.weather.max}°` : new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
@@ -522,6 +548,10 @@ $$("#fin-kind button").forEach(b => b.onclick = () => { finKind = b.dataset.k; $
 $("#fin-save").onclick = async () => {
   const a = $("#fin-amount").value.trim();
   if (!a || isNaN(parseFloat(a.replace(",", ".")))) return toast("Bitte einen Betrag eingeben.");
+  if (solo) {
+    runSoloTool("finance_add", { amount: parseFloat(a.replace(",", ".")), kind: finKind, category: $("#fin-cat").value || null, note: $("#fin-note").value.trim() });
+    $("#fin-amount").value = ""; $("#fin-note").value = ""; toast("Eingetragen – wird an den PC übertragen."); return renderSoloMoney();
+  }
   const tx = await pc("finance_add", a, finKind, finKind === "einnahme" ? "Einnahmen" : ($("#fin-cat").value || null), $("#fin-note").value.trim());
   $("#fin-amount").value = ""; $("#fin-note").value = "";
   toast(`Eingetragen: ${eur(Math.abs(tx.amount))} · ${tx.category}`); renderMoney();
@@ -574,7 +604,7 @@ async function renderMore() {
   $$("#memory [data-k]").forEach(b => b.onclick = async () => { if (confirm("Vergessen?")) { await pc("memory_delete", b.dataset.k); renderMore(); } });
   const act = await pc("activity", 15);
   $("#activity").innerHTML = act.map(e => `<div class="row"><div class="grow" style="${e.ok ? "" : "color:var(--danger)"}">${esc(e.text)}<small>${new Date(e.ts * 1000).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · ${esc(e.kind)}</small></div></div>`).join("");
-  renderPushCard();
+  renderPushCard(); renderSoloCard();
 }
 $("#mem-add").onclick = () => sheet(`<h3>Merken</h3><div class="f"><input class="in" id="m-l" placeholder="Was? z. B. Lieblingsessen"><input class="in" id="m-v" placeholder="Wert, z. B. Pizza">
   <button class="btn" id="m-ok">Speichern</button><button class="btn ghost" data-close>Abbrechen</button></div>`,
@@ -651,11 +681,228 @@ async function renderPushCard() {
   $$("#pmode button").forEach(b => b.onclick = async () => { await post("/api/push/mode", { mode: b.dataset.m }); renderPushCard(); });
 }
 
+/* ------------------------------------------------------------ Jarvis ohne PC
+   Ist der PC aus oder nicht erreichbar, arbeitet die App selbst weiter: eigene KI (OpenAI direkt vom Handy),
+   Gedächtnis und Finanzen aus dem letzten Abgleich. Alles, was hier passiert, landet in einer Warteschlange
+   und wird automatisch an JARVIS am PC nachgetragen, sobald er wieder erreichbar ist. */
+let solo = false;
+const OPENAI = "https://api.openai.com/v1";
+const snap = () => ls.get("snap", null);
+const outbox = () => ls.get("outbox", []);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function queue(op) { const q = outbox(); q.push({ id: uid(), ...op }); ls.set("outbox", q.slice(-500)); }
+const soloKey = () => ls.get("solo_key", "");
+
+async function syncNow() {
+  const q = outbox();
+  if (q.length) {
+    try {
+      const r = await post("/api/sync", { ops: q });
+      const done = new Set(r.ok || []);
+      ls.set("outbox", outbox().filter(o => !done.has(o.id)));
+      const n = [...done].length;
+      if (n && q.some(o => o.op !== "cost")) toast(`${n} Änderung${n === 1 ? "" : "en"} vom Handy an JARVIS übertragen.`);
+      ls.set("pending_tx", ls.get("pending_tx", []).filter(t => !done.has(t.id)));
+    } catch {}
+  }
+  try {
+    const s = await call("/api/sync");
+    ls.set("snap", s);
+    if (s.key_shared && !soloKey()) {       // am PC freigegeben → Schlüssel einmalig übernehmen
+      const k = await call("/api/solo/key");
+      if (k.ok) { ls.set("solo_key", k.key); toast("Jarvis ohne PC ist bereit."); }
+    }
+  } catch {}
+}
+
+function enterSolo() {
+  solo = true;
+  $("#pill").className = "pill solo"; $("#pill span").textContent = "Ohne PC";
+}
+
+// ---------- Werkzeuge der Handy-KI
+function soloFinance() {
+  const s = snap()?.finance || { month_spent: 0, month_earned: 0, by_category: [], budgets: [], subs: [], subs_monthly: 0, recent: [], categories: [] };
+  const month = new Date().toISOString().slice(0, 7);
+  const pend = ls.get("pending_tx", []).filter(t => t.day.startsWith(month));
+  const f = JSON.parse(JSON.stringify(s));
+  for (const t of pend) {
+    if (t.amount < 0) {
+      f.month_spent += -t.amount;
+      const c = f.by_category.find(x => x.category === (t.category || "Sonstiges"));
+      if (c) c.sum += -t.amount; else f.by_category.push({ category: t.category || "Sonstiges", sum: -t.amount, n: 1 });
+    } else f.month_earned += t.amount;
+  }
+  f.recent = [...ls.get("pending_tx", []).map(t => ({ ...t, pending: true })), ...(f.recent || [])];
+  return f;
+}
+const SOLO_TOOLS = [
+  { type: "web_search" },
+  { type: "function", name: "finance_add", description: "Trägt eine Ausgabe oder Einnahme ins Haushaltsbuch ein",
+    parameters: { type: "object", properties: { amount: { type: "number", description: "Betrag in Euro, positiv" },
+      kind: { type: "string", enum: ["ausgabe", "einnahme"] }, category: { type: "string", description: "Kategorie, falls klar" },
+      note: { type: "string", description: "Wofür / wo" } }, required: ["amount", "kind"] } },
+  { type: "function", name: "finance_overview", description: "Aktueller Stand: Ausgaben/Einnahmen diesen Monat, Kategorien, Budgets, Abos",
+    parameters: { type: "object", properties: {} } },
+  { type: "function", name: "memory_remember", description: "Merkt sich dauerhaft etwas über den Nutzer",
+    parameters: { type: "object", properties: { label: { type: "string", description: "Was, z. B. Lieblingsessen" }, value: { type: "string" } }, required: ["label", "value"] } },
+];
+function runSoloTool(name, a) {
+  if (name === "finance_add") {
+    const amt = Math.abs(+a.amount) * (a.kind === "einnahme" ? 1 : -1);
+    if (!amt) return "Betrag fehlt.";
+    const id = uid(), day = new Date().toLocaleDateString("sv-SE");
+    const cats = snap()?.finance?.categories || [];
+    const category = a.kind === "einnahme" ? "Einnahmen" : (cats.includes(a.category) ? a.category : null);
+    const t = { id, day, amount: amt, category, note: a.note || "" };
+    ls.set("pending_tx", [t, ...ls.get("pending_tx", [])]);
+    const q = outbox(); q.push({ id, op: "finance_add", amount: Math.abs(amt), kind: a.kind, category, note: t.note, day }); ls.set("outbox", q);
+    return "Eingetragen (wird an den PC übertragen, sobald er erreichbar ist).";
+  }
+  if (name === "finance_overview") {
+    const f = soloFinance();
+    return JSON.stringify({ monat: f.month_name, ausgegeben: f.month_spent, eingenommen: f.month_earned, kategorien: f.by_category,
+      budgets: f.budgets, abos: (f.subs || []).map(s => ({ name: s.name, betrag: s.amount, intervall: s.interval })), abos_pro_monat: f.subs_monthly });
+  }
+  if (name === "memory_remember") {
+    const s = snap() || {}; s.memory = [...(s.memory || []).filter(m => m.label.toLowerCase() !== a.label.toLowerCase()), { label: a.label, value: a.value }];
+    ls.set("snap", s); queue({ op: "memory_set", label: a.label, value: a.value });
+    return "Gemerkt.";
+  }
+  return "Unbekannt.";
+}
+
+function soloInstructions() {
+  const s = snap() || {};
+  const now = new Date();
+  const facts = (s.memory || []).map(m => `${m.label}: ${m.value}`).join("; ");
+  return `Du bist JARVIS, der persönliche Assistent von ${s.user || "deinem Nutzer"}. Antworte kurz, freundlich und natürlich auf Deutsch (du wirst oft vorgelesen – keine Listen oder Markdown, außer man fragt danach).
+Du läufst gerade als App auf dem Handy, weil der PC aus oder nicht erreichbar ist. PC steuern, Programme starten, Smart-Home, Timer oder Push-Erinnerungen gehen deshalb gerade nicht – sag das ehrlich und biete an, es zu erledigen, sobald der PC wieder an ist.
+Du kannst: Fragen beantworten, im Internet suchen, Ausgaben/Einnahmen eintragen, die Finanzen auswerten und dir Dinge merken.
+Heute ist ${now.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}, ${now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr.
+Was du über den Nutzer weißt: ${facts || "noch nichts"}.
+Keine Anlageberatung; bei Geldfragen nur die eigenen Zahlen des Nutzers auswerten.`;
+}
+
+async function openai(path, body, isForm) {
+  const r = await fetch(OPENAI + path, { method: "POST", body: isForm ? body : JSON.stringify(body),
+    headers: { Authorization: "Bearer " + soloKey(), ...(isForm ? {} : { "Content-Type": "application/json" }) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = j.error?.message || "HTTP " + r.status;
+    if (r.status === 401) throw new Error("Der OpenAI-Schlüssel auf dem Handy ist ungültig.");
+    if (r.status === 429) throw new Error("OpenAI: Limit erreicht oder kein Guthaben mehr.");
+    throw new Error("OpenAI: " + msg);
+  }
+  return j;
+}
+
+async function soloChat(text) {
+  if (!soloKey()) return "Ohne PC brauche ich einen OpenAI-Schlüssel. Schalte am PC unter Handy „OpenAI-Schlüssel ans Handy geben“ ein und öffne die App einmal, während der PC an ist.";
+  if (!navigator.onLine) return "Dein Handy hat gerade kein Internet.";
+  const model = snap()?.model || "gpt-4.1-mini";
+  let hist = ls.get("solo_hist", []);
+  let input = [...hist, { role: "user", content: text }];
+  let answer = "";
+  for (let i = 0; i < 5; i++) {
+    const r = await openai("/responses", { model, instructions: soloInstructions(), input, tools: SOLO_TOOLS, store: false });
+    const searches = (r.output || []).filter(o => o.type === "web_search_call").length;
+    queue({ op: "cost", model, tin: r.usage?.input_tokens || 0, tout: r.usage?.output_tokens || 0, searches, kind: "Handy ohne PC" });
+    const calls = (r.output || []).filter(o => o.type === "function_call");
+    answer = (r.output || []).filter(o => o.type === "message").flatMap(o => o.content || []).filter(c => c.type === "output_text").map(c => c.text).join("").trim();
+    if (!calls.length) break;
+    for (const c of calls) {
+      let args = {}; try { args = JSON.parse(c.arguments || "{}"); } catch {}
+      input.push({ type: "function_call", call_id: c.call_id, name: c.name, arguments: c.arguments });
+      input.push({ type: "function_call_output", call_id: c.call_id, output: runSoloTool(c.name, args) });
+    }
+  }
+  answer = answer || "Erledigt.";
+  hist = [...hist, { role: "user", content: text }, { role: "assistant", content: answer }].slice(-12);
+  ls.set("solo_hist", hist);
+  return answer;
+}
+
+async function soloTranscribe(blob, seconds) {
+  const fd = new FormData();
+  fd.append("file", blob, "sprache." + (blob.type.includes("mp4") ? "mp4" : blob.type.includes("ogg") ? "ogg" : "webm"));
+  fd.append("model", "gpt-4o-mini-transcribe"); fd.append("language", "de");
+  const r = await openai("/audio/transcriptions", fd, true);
+  queue({ op: "cost", model: "gpt-4o-mini-transcribe", seconds, kind: "Handy ohne PC · Spracherkennung" });
+  return (r.text || "").trim();
+}
+
+// ---------- Ansichten ohne PC
+function soloNotice(where) {
+  return `<div class="banner"><p><b>Der PC ist gerade nicht erreichbar.</b><br><span class="muted">${where}</span></p></div>`;
+}
+function renderSoloStart() {
+  const s = snap() || {}, f = soloFinance(), hr = new Date().getHours();
+  $("#hello").textContent = (hr < 5 ? "Gute Nacht" : hr < 11 ? "Guten Morgen" : hr < 18 ? "Hallo" : "Guten Abend") + (s.user ? ", " + s.user : "");
+  $("#hello-sub").textContent = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+  $("#push-banner").innerHTML = soloNotice(soloKey() ? "Jarvis läuft im Handy-Modus: Fragen, Sprache, Finanzen und Gedächtnis gehen weiter. Alles wird nachgetragen, sobald der PC wieder an ist."
+    : "Für Jarvis ohne PC: am PC unter Handy „OpenAI-Schlüssel ans Handy geben“ einschalten und die App einmal öffnen, während der PC an ist.");
+  $("#modes").closest(".card").style.display = "none";
+  const n = outbox().filter(o => o.op !== "cost").length;
+  $("#start-stats").innerHTML = [["Ausgaben " + (f.month_name || "").slice(0, 3), eur(f.month_spent)], ["Gedächtnis", (s.memory || []).length + " Einträge"],
+    ["Warten auf PC", n + " Änderung" + (n === 1 ? "" : "en")], ["Stand vom", s.time ? new Date(s.time * 1000).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "–"]]
+    .map(([k, v]) => `<div class="stat"><b style="font-size:17px">${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
+  $("#missed").innerHTML = ""; $("#upcoming").innerHTML = "";
+  $("#quick-start").innerHTML = [["chat", "Frag Jarvis", () => go("talk")], ["brief", "Ausgabe eintragen", () => go("money")], ["timer", "Nochmal verbinden", () => refresh()]]
+    .map((b, i) => `<button class="qb" data-si="${i}">${svg(b[0])}${b[1]}</button>`).join("");
+  const acts = [() => go("talk"), () => go("money"), () => { toast("Verbinde …"); refresh(); }];
+  $$("#quick-start [data-si]").forEach(b => b.onclick = acts[b.dataset.si]);
+}
+function renderSoloMoney() {
+  const f = soloFinance();
+  finCats = f.categories || [];
+  if ($("#fin-cat").options.length < 2) $("#fin-cat").innerHTML += finCats.filter(c => c !== "Einnahmen").map(c => `<option>${esc(c)}</option>`).join("");
+  $("#fin-month").firstChild.textContent = (f.month_name || "Dieser Monat") + " ";
+  $("#fin-count").textContent = "ohne PC";
+  $("#fin-spent").textContent = eur(f.month_spent);
+  $("#fin-stats").innerHTML = [["Eingenommen", eur(f.month_earned)], ["Übrig", eur(f.month_earned - f.month_spent)]].map(([k, v]) => `<div class="stat"><b style="font-size:17px">${v}</b><span>${k}</span></div>`).join("");
+  const max = Math.max(1, ...f.by_category.map(c => c.sum));
+  $("#fin-cats").innerHTML = f.by_category.map(c => `<div style="padding:5px 0"><div class="kv"><span>${esc(c.category)}</span><span>${eur(c.sum)}</span></div><div class="bar"><i style="width:${c.sum / max * 100}%"></i></div></div>`).join("") || '<p class="empty">Noch keine Ausgaben.</p>';
+  $("#fin-buds").innerHTML = (f.budgets || []).map(b => `<div class="kv" style="padding:4px 0"><span>${esc(b.category)}</span><span>${eur(b.monthly)}</span></div>`).join("") || '<p class="empty">Keine Budgets.</p>';
+  $("#fin-subsum").textContent = f.subs?.length ? "≈ " + eur(f.subs_monthly) + " / Monat" : "";
+  $("#fin-subs").innerHTML = (f.subs || []).map(s => `<div class="row"><div class="grow">${esc(s.name)}</div><span class="amt">${eur(s.amount)}</span></div>`).join("") || '<p class="empty">Keine Abos.</p>';
+  $("#fin-recent").innerHTML = f.recent.slice(0, 25).map(t => `<div class="row"><div class="grow">${esc(t.note || t.category || "–")}<small>${new Date(t.day + "T12:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} · ${t.pending ? "wartet auf PC" : esc(t.category)}</small></div>
+    <span class="amt" style="color:${t.amount > 0 ? "var(--ok)" : "var(--text)"}">${t.amount > 0 ? "+" : ""}${eur(t.amount)}</span></div>`).join("") || '<p class="empty">Noch nichts eingetragen.</p>';
+}
+function renderSoloMore() {
+  const s = snap() || {};
+  $("#memory").innerHTML = (s.memory || []).slice(0, 40).map(r => `<div class="row"><div class="grow">${esc(r.label)}<small>${esc(r.value)}</small></div></div>`).join("") || '<p class="empty">Noch nichts gespeichert.</p>';
+  $("#activity").innerHTML = '<p class="empty">Verfügbar, wenn der PC an ist.</p>';
+  $("#push-card").innerHTML = '<p class="muted">Push-Nachrichten kommen vom PC – wieder, sobald er an ist.</p>';
+}
+function renderSoloCard() {
+  const k = soloKey();
+  $("#solo-card").innerHTML = `<p class="muted">Ist der PC aus, arbeitet Jarvis hier auf dem Handy weiter und trägt alles später am PC nach.</p>
+    <div class="kv" style="padding:6px 0"><span>OpenAI-Schlüssel</span><span>${k ? "eingerichtet (…" + esc(k.slice(-4)) + ")" : "fehlt"}</span></div>
+    <div class="kv" style="padding:6px 0"><span>Warten auf PC</span><span>${outbox().filter(o => o.op !== "cost").length}</span></div>
+    ${k ? '<button class="btn ghost small" id="solo-del">Schlüssel vom Handy löschen</button>'
+        : '<p class="muted">Am PC: JARVIS → Handy → „OpenAI-Schlüssel ans Handy geben“ einschalten. Die App holt ihn dann automatisch.</p>'}`;
+  $("#solo-del") && ($("#solo-del").onclick = () => { if (confirm("Schlüssel vom Handy löschen? Ohne PC kann Jarvis dann nicht mehr denken.")) { ls.set("solo_key", ""); renderSoloCard(); } });
+}
+
 /* ------------------------------------------------------------ Status */
 let status = null;
 async function refresh() {
   if (!token) return showLogin();
-  try { status = await call("/api/status"); } catch (e) { $("#pill").className = "pill off"; $("#pill span").textContent = "Offline"; return; }
+  try { status = await call("/api/status", { timeout: 6000 }); }
+  catch (e) {
+    if (e.message === "401") return;
+    enterSolo();
+    try {
+      if (view === "start") renderSoloStart();
+      else if (view === "control") $("#pc-buttons").closest("section").querySelector("h2").insertAdjacentHTML("beforebegin", $("#solo-ctl") ? "" : `<div id="solo-ctl">${soloNotice("PC-Steuerung geht erst wieder, wenn der PC an ist.")}</div>`);
+      else if (view === "money") renderSoloMoney();
+      else if (view === "more") { renderSoloMore(); renderSoloCard(); }
+    } catch (err) { console.error(err); }
+    return;
+  }
+  const wasSolo = solo; solo = false; $("#solo-ctl")?.remove();
+  if (wasSolo || Date.now() - (ls.get("last_sync", 0)) > 60000) { ls.set("last_sync", Date.now()); syncNow(); }
   const busy = ["thinking", "executing", "listening", "speaking"].includes(status.state);
   $("#pill").className = "pill" + (status.state === "halted" ? " off" : busy ? " busy" : "");
   $("#pill span").textContent = { halted: "Not-Aus", thinking: "Denkt", executing: "Führt aus", speaking: "Spricht", listening: "Hört zu" }[status.state] || "Online";
@@ -668,7 +915,7 @@ async function refresh() {
   } catch (e) { console.error(e); }
 }
 go(view);
-setInterval(() => document.visibilityState === "visible" && ["start", "control"].includes(view) && refresh(), 6000);
+setInterval(() => document.visibilityState === "visible" && (solo || ["start", "control"].includes(view)) && refresh(), solo ? 20000 : 6000);
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && refresh());
 </script>
 </body>

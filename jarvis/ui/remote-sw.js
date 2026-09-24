@@ -1,6 +1,26 @@
 /* JARVIS Handy-App: Service Worker für Push-Nachrichten */
-self.addEventListener("install", () => self.skipWaiting());
+const SHELL = "jarvis-app-v1";
+self.addEventListener("install", e => e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon.png"])).catch(() => {}).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
+
+// App-Seite: immer frisch vom PC – ist er aus, die zuletzt gespeicherte Version (Jarvis ohne PC)
+self.addEventListener("fetch", e => {
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin || !(req.mode === "navigate" || url.pathname === "/icon.png")) return;
+  e.respondWith((async () => {
+    const cache = await caches.open(SHELL);
+    try {
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 5000);
+      const res = await fetch(url.href, { signal: ctl.signal, cache: "no-store", credentials: "same-origin" }); clearTimeout(tm);
+      if (res.ok) cache.put(url.pathname === "/icon.png" ? "/icon.png" : "/", res.clone());
+      return res;
+    } catch {
+      return (await cache.match(url.pathname === "/icon.png" ? "/icon.png" : "/")) || Response.error();
+    }
+  })());
+});
 
 self.addEventListener("push", e => {
   let d = {};

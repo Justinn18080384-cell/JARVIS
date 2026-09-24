@@ -103,6 +103,7 @@ DEFAULTS = {
         "push": True,                   # Meldungen als Push-Nachricht aufs Handy
         "push_mode": "away",            # away = nur wenn ich nicht am PC bin (oder dringend) | always
         "push_min_priority": 0,
+        "share_ai_key": False,          # OpenAI-Schlüssel an die Handy-App geben (Jarvis ohne PC)
     },
     "briefing": {
         "city": "",                     # leer = Wohnort aus dem Gedächtnis
